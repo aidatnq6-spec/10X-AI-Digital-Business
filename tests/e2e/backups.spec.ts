@@ -1,0 +1,41 @@
+import { test,expect } from '@playwright/test'
+import { randomUUID } from 'node:crypto'
+import { icaPreset } from '../../src/lib/projects/ica-preset'
+const origin='http://127.0.0.1:3201'
+test('owner backs up and restores a paused copy without losing the original or unsaved input',async({page,request})=>{
+ const r=await request.post('/api/projects',{headers:{origin},data:{name:'Sao lưu UI',brief:icaPreset,requestId:randomUUID()}})
+ const {project}=await r.json()
+ await page.addInitScript(id=>{if(!localStorage.getItem('mission-control.active-project.v1'))localStorage.setItem('mission-control.active-project.v1',id)},project.id)
+ await page.goto('/#he-thong-1')
+ const panel=page.getByTestId('backup-panel')
+ await expect(panel).toContainText('Sao lưu thành công gần nhất')
+ await panel.getByRole('button',{name:'Sao lưu ngay',exact:true}).click()
+ await expect(panel.getByRole('status')).toContainText('Đã sao lưu')
+ const catalog=await (await request.get('/api/backups')).json()
+ const backup=catalog.backups.find((b:any)=>b.projectId===project.id&&b.reason==='manual')
+ expect(backup).toBeTruthy()
+ await page.getByLabel('Sản phẩm / dịch vụ *',{exact:true}).fill('Đề bài mới sau sao lưu')
+ await expect(panel.getByRole('button',{name:'Sao lưu ngay',exact:true})).toBeDisabled()
+ await page.getByRole('button',{name:'Lưu đề bài',exact:true}).click()
+ await expect.poll(async()=> (await (await request.get('/api/projects/'+project.id)).json()).project.brief.product).toBe('Đề bài mới sau sao lưu')
+ await panel.getByLabel('Bản sao lưu muốn khôi phục',{exact:true}).selectOption(backup.id)
+ await panel.getByRole('button',{name:'Khôi phục bản đã chọn',exact:true}).click()
+ await expect(panel.getByRole('button',{name:'Xác nhận khôi phục bản riêng',exact:true})).toBeDisabled()
+ await panel.getByRole('checkbox').check()
+ await panel.getByRole('button',{name:'Xác nhận khôi phục bản riêng',exact:true}).click()
+ await expect(page.getByLabel('Sản phẩm / dịch vụ *',{exact:true})).toHaveValue(icaPreset.product)
+ const restoredId=await page.getByLabel('Chọn đề bài đã lưu',{exact:true}).inputValue()
+ expect(restoredId).not.toBe(project.id)
+ const current=(await (await request.get('/api/projects/'+project.id)).json()).project
+ expect(current.brief.product).toBe('Đề bài mới sau sao lưu')
+ const restored=(await (await request.get('/api/projects/'+restoredId)).json()).project
+ expect(restored.status).toBe('paused');expect(restored.jobs).toHaveLength(0);expect(restored.aiConfig).toBeNull()
+ expect(restored.restoredFrom.backupId).toBe(backup.id)
+ await page.reload()
+ await expect(page.getByLabel('Chọn đề bài đã lưu',{exact:true})).toHaveValue(restoredId)
+ await expect(page.getByRole('heading',{name:'Đã tạm dừng',exact:true})).toBeVisible()
+ await panel.screenshot({path:'.local/e2e-results/priority5-backups-desktop.png'})
+ await page.setViewportSize({width:390,height:844})
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+ await panel.screenshot({path:'.local/e2e-results/priority5-backups-mobile.png'})
+})
