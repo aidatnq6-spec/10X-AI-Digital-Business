@@ -4,7 +4,7 @@
 
 ## Mốc C đã triển khai — OpenRouter trong quy trình chung
 
-- Điền `OPENROUTER_API_KEY` trong **`D:\GitHub\mission-control-app\.env.local`**. Giữ file hiện có, chỉ sửa giá trị biến; không sao chép `.env.example` đè lên file chứa key. Key không được đưa vào trình duyệt, snapshot hay log.
+- Điền `OPENROUTER_API_KEY` trong **`D:\GitHub\10X-AI-Digital-Business\.env.local`**. Giữ file hiện có, chỉ sửa giá trị biến; không sao chép `.env.example` đè lên file chứa key. Key không được đưa vào trình duyệt, snapshot hay log.
 - Lưu đề bài, mở **Kết nối OpenRouter · model & hạn mức**, bấm tải model/giá và kiểm tra lại key. Chỉ danh sách model hỗ trợ structured JSON, có giá token xác định và phù hợp chế độ text được đưa ra lựa chọn.
 - Chọn model, số lần gọi tối đa, ngân sách dự toán USD, token đầu vào/đầu ra; đánh dấu đồng ý chi phí rồi bấm **Lưu cấu hình AI thật**. Chỉ lưu cấu hình chưa gọi sinh nội dung.
 - Bấm **Bắt đầu AI thật (có thể tính phí)**, hoặc **Tiếp tục từ checkpoint** nếu chuyển từ chuỗi mẫu đã chạy. Chuyển chế độ làm cũ đầu ra mẫu và duyệt cũ, không gắn lại nhãn mẫu thành AI. Luồng vẫn giữ đúng hai điểm duyệt.
@@ -28,7 +28,7 @@ Kiểm thử OpenRouter dùng HTTP giả để kiểm tra request thật, đủ 
 
 **Đây là nội dung mẫu xác định sẵn để kiểm tra quy trình, chưa phải AI thật.** Worker không đọc OpenRouter key và không gọi provider có phí. Không có bài đăng, email, thanh toán hay nghiệp vụ cấp chữ ký số nào được thực hiện. Mốc C đã nối OpenRouter; chọn cấu hình và bắt đầu AI thật để dùng provider thật.
 
-Launcher Desktop khởi động cả web server (3200) và worker mẫu (3210) ở chế độ ẩn, xác minh đúng thư mục/PID trước khi sử dụng lại. Đóng trình duyệt không dừng worker. Dữ liệu công việc, đầu vào, phiên bản và quyết định duyệt được lưu trong snapshot dự án. Khi tắt máy thì không xử lý; mở lại lối tắt để tiếp tục.
+Launcher Desktop khởi động cả web server (3220) và worker (3230) ở chế độ ẩn, xác minh đúng thư mục/PID trước khi sử dụng lại. Đóng trình duyệt không dừng worker. Dữ liệu công việc, đầu vào, phiên bản và quyết định duyệt được lưu trong snapshot dự án. Khi tắt máy thì không xử lý; mở lại lối tắt để tiếp tục.
 
 **Tạm dừng sau bước hiện tại** chặn bước kế tiếp, vẫn cho tác vụ đang chạy lưu checkpoint. **Tiếp tục từ checkpoint** giữ các phần hiện hành và chỉ tạo phần còn thiếu/lỗi thời. Công việc bị gián đoạn sau dispatch chuyển sang trạng thái cần đối chiếu, không tự gửi lại; bản mẫu có nút cho phép chạy lại bước mẫu.
 
@@ -49,7 +49,7 @@ Chạy worker riêng khi phát triển: `npm run worker`. Không mở worker th�
 
 ## Mở phần mềm
 
-Mở lối tắt **10X Mission Control** trên Desktop hoặc truy cập `http://127.0.0.1:3200` khi máy chủ đang chạy.
+Mở lối tắt **10X AI Digital Business** trên Desktop hoặc truy cập `http://127.0.0.1:3220` khi máy chủ đang chạy.
 
 ```powershell
 npm install
@@ -114,3 +114,22 @@ Firebase và tạo ảnh/video là giai đoạn tiếp theo khi có yêu cầu t
 ## Chạy một bước hoặc tạo lại riêng
 
 Đã bổ sung bộ chọn **Một bước / Cả chuỗi**, tạo lại riêng bài đăng/kịch bản và lịch sử phiên bản. Hai điểm duyệt và hạn mức AI vẫn được giữ. Xem [hướng dẫn sử dụng và phạm vi ảnh hưởng](docs/priority2-scoped-runs.md).
+
+
+## Vận hành và hiệu năng
+
+- Mở bằng shortcut **10X AI Digital Business** hoặc `powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\start-local.ps1`. Web 3220, worker 3230; launcher kiểm tra đúng thư mục dữ liệu trước khi dùng lại tiến trình. Đóng Chrome không dừng worker.
+- Dữ liệu đang chạy kiểm tra mỗi 1,5 giây; trạng thái chờ/tạm dừng mỗi 15 giây; hoàn tất mỗi 30 giây. Tab ẩn dừng kiểm tra project/worker và không tải catalog backup định kỳ. Quay lại tab hoặc bấm **Kiểm tra đồng bộ** chỉ đọc dữ liệu, không chạy AI. Mất kết nối giữ bản nháp, tự thử GET lại với khoảng nghỉ tối đa 30 giây.
+- Conditional GET trả 304 khi snapshot không đổi. Workspace chỉ tải nội dung hiện hành; **Xem lịch sử phiên bản** tải riêng khi mở. Lịch sử đầy đủ vẫn được giữ trên máy.
+- **Sao lưu bằng tệp JSON → Tải tệp sao lưu** tạo tệp của dữ liệu đã lưu. Chrome có thể lưu ở Downloads; chuyển thêm sang ổ khác để bảo vệ khi hỏng ổ máy. Tệp có nội dung dự án, không bao gồm biến môi trường/API key được cấu hình trên máy.
+- Chọn JSON tối đa 32 MiB, kiểm tra tên, đánh dấu xác nhận rồi nhập. Máy chủ xác minh checksum và schema, tạo dự án riêng ở trạng thái tạm dừng; không tự chạy AI. Giữ nguyên bản gốc, lịch sử phí đã biết và các khoản chưa rõ; phải cấu hình lại model/hạn mức để chạy AI thật. Giữ nguyên tệp đã xuất, không sửa tay; checksum giúp phát hiện thay đổi, không xác thực nguồn tệp.
+- Backup tự động trên cùng ổ không thay thế bản sao bên ngoài. Chưa có tự đồng bộ cloud hoặc tác vụ backup khi cả ứng dụng/worker đã đóng.
+
+
+## Chẩn đoán lỗi
+
+- Khi gặp lỗi500, thông báo có **mã lỗi**, thời điểm UTC, bước thất bại và **mã đối chiếu**. Mở **Nhật ký lỗi & chẩn đoán** ở màn hình dự án, rồi bấm tải lại để tìm cùng mã. Giờ trong nhật ký được hiển thị theo máy của bạn.
+- Nhật ký API/worker nằm tại `.local/projects/.diagnostics` (hoặc `<MISSION_CONTROL_DATA_DIR>/.diagnostics`), tối đa200 sự cố; giao diện đọc20 bản gần nhất. Chỉ đọc khi mở/tải lại, không gửi log ra ngoài. Không ghi nội dung dự án, prompt, key, env, message/stack thô hoặc đường dẫn riêng. Không có dữ liệu hồi tố của lỗi trước khi cài bản này.
+- `FS_EPERM` tại `repository.commit` là Windows từ chối đổi tên tệp snapshot; tại `repository.lock` là từ chối mở tệp khóa. Các thao tác filesystem an toàn được thử tối đa6 lần, nghỉ20/40/80/160/320ms. Không tự gửi lại lệnh, không gọi lại AI. Nếu vẫn lỗi, mã đối chiếu được giữ để điều tra; không mặc định xóa khóa hay ghi đè snapshot.
+- Lỗi ở bước `repository.release` có thể xảy ra sau khi dữ liệu đã lưu. Kiểm tra bản đã lưu/nhật ký trước khi thao tác tiếp; cùng requestId được đối chiếu qua receipt để tránh nhân đôi công việc. Lượt AI chưa rõ kết quả/chi phí vẫn phải đối chiếu như trước.
+- Nếu thông báo **Chưa ghi được nhật ký trên ổ đĩa**, giữ lại mã và thời điểm hiển thị; kiểm tra dung lượng/quyền ghi. Log hỏng không biến lỗi gốc thành một kết quả thành công.

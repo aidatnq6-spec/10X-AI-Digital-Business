@@ -54,7 +54,7 @@ test('budget explains exhausted funds and unsaved settings never change the appl
  const config={modelId:quote.id,maxCalls:8,maxInputTokens:64000,maxOutputTokens:12000,budgetUsd:1,quote,consentAt:new Date().toISOString()}
  const snapshot={...project,revision:project.revision+1,status:'paused',workflow:{mode:'openrouter',stage:1,gate:null,error:null},aiConfig:config,jobs:[jobSchema.parse({id:randomUUID(),systemId:1,briefVersion:1,workflowEpoch:1,idempotencyKey:randomUUID(),mode:'openrouter',status:'failed',sentAt:new Date().toISOString(),reservedCostUsd:.62,providerRequestId:null,usage:{status:'estimated',inputTokens:null,outputTokens:null,costUsd:1}})]}
  await page.addInitScript(id=>localStorage.setItem('mission-control.active-project.v1',id),project.id)
- await page.route(`**/api/projects/${project.id}`,route=>route.fulfill({json:{project:snapshot}}))
+ await page.route(`**/api/projects/${project.id}?view=workspace`,route=>route.fulfill({json:{project:snapshot}}))
  await page.route('**/api/ai/options*',route=>route.fulfill({json:{keyConfigured:true,models:[quote]}}))
  let commands=0
  await page.route(`**/api/projects/${project.id}/commands`,route=>{commands++;return route.fulfill({status:409,json:{error:'Không gửi AI trong kiểm thử'}})})

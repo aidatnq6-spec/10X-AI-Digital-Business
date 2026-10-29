@@ -1,0 +1,3 @@
+export type DiagnosticOperation='project.list'|'project.get'|'project.create'|'project.update'|'workflow.command'|'worker.poll'|'worker.job'|'worker.heartbeat'|'backup'|'diagnostics.read'|'http.request'
+export type DiagnosticStep='unknown'|'repository.read'|'repository.lock'|'repository.write'|'repository.commit'|'repository.release'|'backup.capture'|'provider.prepare'|'provider.generate'|'provider.catalog'|'provider.usage'|'worker.complete'|'worker.recover'|'worker.claim'
+export type DiagnosticEvent={version:1;id:string;at:string;code:string;source:'web'|'worker';operation:DiagnosticOperation;step:DiagnosticStep;pid:number;projectId?:string;jobId?:string;systemId?:number;command?:string;systemCode?:string;syscall?:string;errorType:string}

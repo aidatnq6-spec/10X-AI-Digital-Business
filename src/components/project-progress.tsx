@@ -10,6 +10,8 @@ import { AiBudgetSummary } from './ai-budget-summary'
 import { ExportControls,ExportButton } from './export-controls'
 import { RunScopeControls } from './run-scope-controls'
 import { usageTotals } from '@/lib/ai/limits'
+import { projectAttention } from '@/lib/workflow/attention'
+import { ArtifactHistory } from './artifact-history'
 export type CommandAction=WorkflowCommand extends infer T?T extends WorkflowCommand?Omit<T,'requestId'>:never:never
 const names=['Sản phẩm Win','Kênh Video AI','Chuyển đổi','Giao hàng & CSKH','Quản trị']
 const statusNames={draft:'Sẵn sàng chạy mẫu',queued:'Đang chờ worker',running:'Đang xử lý bước mẫu',waiting_approval:'Đang chờ bạn duyệt',paused:'Đã tạm dừng',failed:'Cần xử lý gián đoạn',completed:'Đã hoàn tất chuỗi mẫu'}
@@ -23,11 +25,21 @@ export function ProjectProgress({project,current,onGo,onAction,busy,blocked,onEd
  const [manualCosts,setManualCosts]=useState<Record<string,string>>({})
  useEffect(()=>{onEditing(editing!==null||configDirty);return ()=>onEditing(false)},[editing,onEditing,configDirty])
  useEffect(()=>{
-  let disposed=false
-  const read=async()=>{try{const r=await fetch('/api/workflow-health',{cache:'no-store'});const data=await r.json();if(!disposed)setOnline(data.online===true)}catch{if(!disposed)setOnline(false)}}
-  void read();const interval=setInterval(()=>void read(),4000);return()=>{disposed=true;clearInterval(interval)}
- },[])
+  let disposed=false,pending=false,timer:ReturnType<typeof setTimeout>|undefined,controller:AbortController|undefined
+  const schedule=()=>{clearTimeout(timer);if(!disposed&&document.visibilityState!=='hidden')timer=setTimeout(()=>void read(),['running','queued'].includes(project.status)?4000:15000)}
+  const read=async()=>{
+   if(disposed||pending||document.visibilityState==='hidden')return
+   pending=true;controller=new AbortController()
+   try{const r=await fetch('/api/workflow-health',{cache:'no-store',signal:controller.signal});if(!r.ok)throw Error();const data=await r.json();if(!disposed)setOnline(data.online===true)}
+   catch{if(!disposed&&!controller.signal.aborted)setOnline(false)}
+   finally{pending=false;schedule()}
+  }
+  const visibility=()=>{if(document.visibilityState==='hidden'){clearTimeout(timer);controller?.abort()}else void read()}
+  void read();document.addEventListener('visibilitychange',visibility)
+  return()=>{disposed=true;controller?.abort();clearTimeout(timer);document.removeEventListener('visibilitychange',visibility)}
+ },[project.id,project.status])
  const live=project.workflow.mode==='openrouter',totals=usageTotals(project.jobs)
+ const attention=projectAttention(project,online)
  const gate=pendingGate(project),items=gate?gateItems(project,gate):currentArtifacts(project,current+1)
  const gaps=gate===2&&items.some(a=>a.criticalGaps.length)
  const disabled=busy||blocked||editing!==null||configDirty||(live&&!project.aiConfig)
@@ -35,6 +47,7 @@ export function ProjectProgress({project,current,onGo,onAction,busy,blocked,onEd
  const newer=editing?currentArtifacts(project,editing.stage).find(a=>a.key===editing.key):null
  return <section aria-labelledby="workflow-heading" className="mb-6 rounded-2xl border border-glow/30 bg-surface p-4 sm:p-6">
   <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-mono text-xs uppercase tracking-widest text-glow">{live?'Mốc C · AI thật qua OpenRouter':'Mốc B · Chạy quy trình mẫu'}</p><h2 id="workflow-heading" className="mt-2 font-display text-xl font-semibold">{live?(project.status==='draft'?'Sẵn sàng chạy AI thật':project.status==='running'?'Đang tạo nội dung bằng AI':project.status==='completed'?'Đã hoàn tất chuỗi AI':statusNames[project.status]):statusNames[project.status]}</h2><p className="mt-2 text-sm text-mute">{live?('Model: '+(project.aiConfig?.modelId??'chưa chọn')+'. Nội dung AI là bản nháp cần bạn kiểm tra trước khi sử dụng.'):'Nội dung mẫu có sẵn để kiểm tra quy trình. Chưa gọi AI thật · 0 chi phí AI.'}</p></div><span className={`rounded-full border px-3 py-1.5 text-xs ${online?'border-ok/40 text-ok':'border-warn/40 text-warn'}`}>{online===null?'Đang kiểm tra worker…':online?'Worker đang hoạt động':'Worker chưa kết nối'}</span></div>
+  {attention?<div role="note" data-testid="workflow-attention" className="my-4 rounded-xl border border-warn/40 bg-warn/5 p-4 text-sm"><p className="font-semibold text-warn">{attention.title}</p><p className="mt-2 text-mute">{attention.detail}</p><p className="mt-2 text-mute">{attention.next}</p></div>:null}
   <OpenRouterSettings project={project} busy={busy} blocked={blocked||editing!==null} onAction={onAction} onDraftChange={setConfigDirty}/>
   {project.restoredFrom&&live&&!project.aiConfig?<p role="note" className="my-3 rounded-lg border border-warn/40 p-3 text-sm text-warn">Bản khôi phục đang tạm dừng. Chọn model, hạn mức và lưu cấu hình AI thật trước khi chạy tiếp. Khôi phục không tự gửi lượt AI.</p>:null}
   <AiBudgetSummary project={project}/>
@@ -77,7 +90,7 @@ export function ProjectProgress({project,current,onGo,onAction,busy,blocked,onEd
       <div className="mt-3 flex flex-wrap gap-3"><Button className="min-h-11 whitespace-normal" disabled={disabled||online!==true||project.jobs.some(j=>['dispatching','running','needs_reconciliation'].includes(j.status)||(j.status==='queued'&&project.status!=='paused'))} onClick={()=>void onAction({type:'regenerateArtifact',artifactId:item.id,...(live?{acknowledgeCost:true}:{})}).then(ok=>{if(ok)setRegenerating(null)})}>Xác nhận tạo lại{live?' (có thể tính phí)':''}</Button><Button variant="outline" className="min-h-11" disabled={busy} onClick={()=>setRegenerating(null)}>Hủy tạo lại</Button></div>
      </div>:null}
     </div>:null}
-    {project.artifacts.filter(a=>a.systemId===item.systemId&&a.key===item.key&&a.id!==item.id).length?<details className="mt-4 rounded-lg border border-line2 p-3"><summary className="cursor-pointer text-sm">Xem lịch sử phiên bản</summary>{project.artifacts.filter(a=>a.systemId===item.systemId&&a.key===item.key&&a.id!==item.id).sort((a,b)=>b.version-a.version).map(a=><div key={a.id} className="mt-4"><p className="text-xs text-mute">Bản {a.version} · đề bài {a.briefVersion} · {a.status==='stale'?'đã thay thế / lỗi thời':a.status==='approved'?'đã duyệt':'bản nháp'} · {a.mode==='openrouter'?'AI':'mẫu'}</p><pre className="mt-2 whitespace-pre-wrap break-words font-sans text-sm text-mute">{a.content}</pre></div>)}</details>:null}
+    <ArtifactHistory projectId={project.id} item={item}/>
 </details>)}</div>
   {!items.length&&project.status!=='draft'?<p className="mt-4 text-sm text-mute">Chưa có nội dung hiện hành tại tab này. Worker sẽ lưu kết quả khi xong bước.</p>:null}
   {project.status==='completed'?<p role="status" className="mt-5 rounded-xl border border-ok/40 p-4 text-sm text-ok">Đã hoàn tất 5 hệ thống qua đúng 2 điểm duyệt. {live?'Kết quả AI đã lưu;':'Kết quả mẫu đã lưu;'} chưa có bài đăng, email hoặc dịch vụ nào được gửi ra ngoài.</p>:null}

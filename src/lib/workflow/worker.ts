@@ -1,3 +1,4 @@
+import { diagnosticContext,diagnosticStep,reportDiagnostic,diagnosticReference,identifyDiagnosticJob } from '../diagnostics/server'
 import { hostname } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -14,18 +15,20 @@ export async function claimNext(repo:ProjectRepository,owner:WorkerOwner,now=Dat
  for(const project of await repo.list()){
   if(!['queued','running'].includes(project.status)||!project.jobs.some(j=>j.status==='queued'))continue
   let claimed:Job|null=null
+  const candidate=project.jobs.find(j=>j.status==='queued'&&j.workflowEpoch===project.workflowEpoch&&j.briefVersion===project.briefVersion)
   try{
-   await transact(repo,project.id,p=>{
+   await diagnosticContext({source:'worker',directory:repo.diagnosticsDirectory,operation:'worker.job',projectId:project.id,jobId:candidate?.id,systemId:candidate?.systemId},()=>transact(repo,project.id,p=>{
     if(!['queued','running'].includes(p.status)||p.jobs.some(j=>['dispatching','running','needs_reconciliation'].includes(j.status)))throw new Skip()
     const job=p.jobs.find(j=>j.status==='queued'&&j.workflowEpoch===p.workflowEpoch&&j.briefVersion===p.briefVersion)
     if(!job)throw new Skip()
+    identifyDiagnosticJob(job)
     if(job.mode==='openrouter'){
      try{if(!job.configSnapshot)throw new Error('Chưa có cấu hình AI.');checkBudget(job.configSnapshot,p.jobs)}
      catch(e){return {...p,status:'paused',workflow:{...p.workflow,error:(e as Error).message}}}
     }
     claimed={...job,reservedCostUsd:job.mode==='openrouter'?reservationUsd(job.configSnapshot!):0,status:'dispatching',ownerId:owner.id,ownerPid:owner.pid,ownerHost:owner.hostname,leaseUntil:now+30000,startedAt:new Date(now).toISOString()}
     return {...p,status:'running',jobs:p.jobs.map(j=>j.id===job.id?claimed!:j)}
-   })
+   }))
    if(claimed)return {projectId:project.id,job:claimed}
   }catch(e){if(!(e instanceof Skip))throw e}
  }
@@ -60,25 +63,33 @@ export async function recoverExpired(repo:ProjectRepository,now=Date.now()){
    return false
   }
   if(!project.jobs.some(abandoned))continue
-  await transact(repo,project.id,p=>p.jobs.some(abandoned)?({...p,status:'failed',workflow:{...p.workflow,error:'Một công việc bị gián đoạn, cần đối chiếu trước khi chạy lại.'},jobs:p.jobs.map(j=>abandoned(j)?{...j,status:'needs_reconciliation',usage:j.mode==='openrouter'&&!j.sentAt?zeroUsage:j.usage??unknownUsage,error:'Không rõ kết quả sau khi worker bị gián đoạn.'}:j)}):p)
+  const candidate=project.jobs.find(abandoned)!
+  await diagnosticContext({source:'worker',directory:repo.diagnosticsDirectory,operation:'worker.poll',step:'worker.recover',projectId:project.id,jobId:candidate.id,systemId:candidate.systemId},()=>transact(repo,project.id,p=>{
+   const active=p.jobs.find(abandoned);if(!active)return p
+   identifyDiagnosticJob(active)
+   return {...p,status:'failed',workflow:{...p.workflow,error:'Một công việc bị gián đoạn, cần đối chiếu trước khi chạy lại.'},jobs:p.jobs.map(j=>abandoned(j)?{...j,status:'needs_reconciliation' as const,usage:j.mode==='openrouter'&&!j.sentAt?zeroUsage:j.usage??unknownUsage,error:'Không rõ kết quả sau khi worker bị gián đoạn.'}:j)}
+  }))
  }
 }
 export async function runOnce(repo:ProjectRepository,provider:WorkflowProvider,owner:WorkerOwner){
- const claim=await claimNext(repo,owner);if(!claim)return false
+ const claim=await diagnosticContext({source:'worker',directory:repo.diagnosticsDirectory,operation:'worker.job'},()=>diagnosticStep('worker.claim',()=>claimNext(repo,owner)));if(!claim)return false
  const {projectId,job}=claim
- const heartbeat=setInterval(()=>{void transact(repo,projectId,p=>({...p,jobs:p.jobs.map(j=>j.id===job.id&&j.ownerId===owner.id&&['dispatching','running'].includes(j.status)?{...j,leaseUntil:Date.now()+30000}:j)})).catch(()=>{})},5000)
+ return diagnosticContext({source:'worker',directory:repo.diagnosticsDirectory,operation:'worker.job',projectId,jobId:job.id,systemId:job.systemId},async()=>{
+ const heartbeat=setInterval(()=>{void transact(repo,projectId,p=>({...p,jobs:p.jobs.map(j=>j.id===job.id&&j.ownerId===owner.id&&['dispatching','running'].includes(j.status)?{...j,leaseUntil:Date.now()+30000}:j)})).catch(e=>{void reportDiagnostic(e,{operation:'worker.heartbeat'})})},5000)
  try{
-  await provider.prepare?.(job)
+  await diagnosticStep('provider.prepare',async()=>{await provider.prepare?.(job)})
   const running=await transact(repo,projectId,p=>({...p,jobs:p.jobs.map(j=>j.id===job.id&&j.ownerId===owner.id&&j.status==='dispatching'?{...j,status:'running',sentAt:job.mode==='openrouter'?new Date().toISOString():null,usage:job.mode==='openrouter'?unknownUsage:zeroUsage}:j)}))
   if(!running.jobs.some(j=>j.id===job.id&&j.ownerId===owner.id&&j.status==='running'))return true
-  const output=await provider.generate(job)
-  await completeJob(repo,projectId,job.id,owner.id,output)
+  const output=await diagnosticStep('provider.generate',()=>provider.generate(job))
+  await diagnosticStep('worker.complete',()=>completeJob(repo,projectId,job.id,owner.id,output))
  }catch(e){
+  const diagnostic=await reportDiagnostic(e)
   const error=e instanceof ProviderError?e:new ProviderError(job.mode==='sample'?'Bước mẫu không hoàn thành.':'Không rõ kết quả AI; cần đối chiếu trước khi thử lại.',job.mode==='openrouter')
   await transact(repo,projectId,p=>{
    if(!p.jobs.some(j=>j.id===job.id&&j.ownerId===owner.id&&['dispatching','running'].includes(j.status)))return p
-   return {...p,status:'failed',workflow:{...p.workflow,error:error.message},jobs:p.jobs.map(j=>j.id===job.id?{...j,status:error.uncertain?'needs_reconciliation':'failed',providerRequestId:error.providerRequestId,usage:job.mode==='sample'?zeroUsage:error.usage,error:error.message,finishedAt:new Date().toISOString(),leaseUntil:null}:j)}
+   return {...p,status:'failed',workflow:{...p.workflow,error:error.message+' '+diagnosticReference(diagnostic)},jobs:p.jobs.map(j=>j.id===job.id?{...j,status:error.uncertain?'needs_reconciliation':'failed',providerRequestId:error.providerRequestId,usage:job.mode==='sample'?zeroUsage:error.usage,error:error.message,finishedAt:new Date().toISOString(),leaseUntil:null}:j)}
   })
  }finally{clearInterval(heartbeat)}
  return true
+ })
 }

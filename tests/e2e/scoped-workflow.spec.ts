@@ -8,6 +8,7 @@ test('owner runs one step, switches to chain, and regenerates one post without r
  const read=async()=>(await (await request.get('/api/projects/'+project.id)).json()).project
  await page.addInitScript(id=>localStorage.setItem('mission-control.active-project.v1',id),project.id)
  await page.goto('/#he-thong-1')
+ let historyReads=0;page.on('request',r=>{if(r.url().includes('view=history'))historyReads++})
  const controls=page.getByTestId('run-scope')
  await controls.getByRole('radio',{name:'Một bước',exact:true}).check()
  await controls.getByRole('button',{name:'Chạy bước đã chọn',exact:true}).click()
@@ -39,7 +40,10 @@ test('owner runs one step, switches to chain, and regenerates one post without r
  for(const a of before.artifacts.filter((a:any)=>a.status==='approved'&&a.systemId<=3&&a.id!==old.id))expect(current.find((b:any)=>b.id===a.id)).toEqual(a)
  expect(saved.jobs.at(-1).outputKeys).toEqual(['post:Facebook'])
  await card.locator(':scope > summary').click()
+ expect(historyReads).toBe(0)
+ const history=page.waitForResponse(r=>r.url().includes('view=history'))
  await card.getByText('Xem lịch sử phiên bản',{exact:true}).click()
+ expect((await history).status()).toBe(200)
  await expect(card).toContainText('đã thay thế / lỗi thời')
  await page.getByRole('button',{name:'Duyệt 2 và dừng',exact:true}).click()
  await expect.poll(async()=> (await read()).status).toBe('paused')

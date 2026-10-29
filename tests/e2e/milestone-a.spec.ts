@@ -9,7 +9,7 @@ async function openBrief(page:Page) {
 }
 async function save(page:Page) {
   await page.getByRole('button',{name:'Lưu đề bài',exact:true}).click()
-  await expect(page.getByRole('status')).toContainText('Đã lưu đề bài trên máy')
+  await expect(page.getByRole('status').filter({hasText:'Đã lưu đề bài'})).toContainText('Đã lưu đề bài trên máy')
 }
 
 test('ICA persists across reload, all five tabs, and mobile layout',async({page})=>{
@@ -44,7 +44,7 @@ test('ICA persists across reload, all five tabs, and mobile layout',async({page}
 })
 
 test('validation links keep the editor open and malformed price is rejected',async({page})=>{
-  await page.route('**/api/projects',route=>route.request().method()==='GET'?route.fulfill({json:{projects:[]}}):route.continue())
+  await page.route(/\/api\/projects(?:\?.*)?$/,route=>route.request().method()==='GET'?route.fulfill({json:{projects:[]}}):route.continue())
   await openBrief(page)
   await page.getByRole('button',{name:'Điền mẫu ICA'}).click()
   await page.getByLabel('Ngách *',{exact:true}).fill('')
@@ -62,7 +62,7 @@ test('validation links keep the editor open and malformed price is rejected',asy
 
 test('failed first save retains editable input and can retry',async({page})=>{
   let first=true
-  await page.route('**/api/projects',route=>{
+  await page.route(/\/api\/projects(?:\?.*)?$/,route=>{
     if(route.request().method()==='GET') return route.fulfill({json:{projects:[]}})
     if(first) {first=false;return route.abort('failed')}
     return route.continue()
@@ -103,7 +103,7 @@ test('two windows detect stale saves and retain the owners draft for comparison'
 test('retry after persisted create with lost response keeps a single project',async({page,request})=>{
   const before=await (await request.get('/api/projects')).json()
   let first=true
-  await page.route('**/api/projects',async route=>{
+  await page.route(/\/api\/projects(?:\?.*)?$/,async route=>{
     if(route.request().method()==='GET') return route.fulfill({json:{projects:[]}})
     if(first) {first=false;await route.fetch();return route.abort('failed')}
     return route.continue()
