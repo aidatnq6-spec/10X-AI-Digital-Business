@@ -1,3 +1,4 @@
+import { diagnosticContext,reportDiagnostic,diagnosticReference,type DiagnosticContext } from '../diagnostics/server'
 import { z } from 'zod'
 import { createProjectSchema, patchProjectSchema } from './schema'
 import { ProjectError, type ProjectRepository } from './repository'
@@ -17,24 +18,29 @@ export async function body(request:Request,maxBytes=128*1024) {
   }finally{reader.releaseLock()}
   try{return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown}catch{throw new BodyError('Dữ liệu gửi lên không hợp lệ.')}
 }
-export async function handle(action:()=>Promise<Response>) {
+export async function handle(action:()=>Promise<Response>,context:DiagnosticContext={}) {
+ return diagnosticContext(context,async()=>{
   try{return await action()}
   catch(error) {
     if(error instanceof AccessError) return json({error:error.message},403)
     if(error instanceof BodyError) return json({error:error.message},400)
     if(error instanceof z.ZodError) return json({error:'Vui lòng kiểm tra lại các trường đã nhập.',issues:error.issues.map(x=>({path:x.path.map(String).join('.'),message:x.message}))},400)
-    if(error instanceof ProjectError) return json({error:error.message,code:error.code},({INVALID_ID:400,NOT_FOUND:404,CONFLICT:409,CORRUPT:500,BUSY:409} as const)[error.code])
-    return json({error:'Không lưu hoặc đọc được dữ liệu trên máy. Vui lòng thử lại; nội dung đang nhập vẫn được giữ.'},500)
+    if(error instanceof ProjectError&&error.code!=='CORRUPT') return json({error:error.message,code:error.code},({INVALID_ID:400,NOT_FOUND:404,CONFLICT:409,CORRUPT:500,BUSY:409} as const)[error.code])
+    const diagnostic=await reportDiagnostic(error)
+    const message=error instanceof ProjectError?error.message:'Không lưu hoặc đọc được dữ liệu trên máy. Nội dung đang nhập vẫn được giữ.'
+    const response=json({error:message+' '+diagnosticReference(diagnostic),code:diagnostic.code,diagnostic},500)
+    response.headers.set('X-Diagnostic-Id',diagnostic.id);return response
   }
+ })
 }
 export function createProjectHandlers(repository:ProjectRepository) {
   return {
-    list:(request:Request)=>handle(async()=>{assertLocalAccess(request);const projects=await repository.list();return json({projects:new URL(request.url).searchParams.get('view')==='summary'?projects.map(projectSummary):projects})}),
+    list:(request:Request)=>handle(async()=>{assertLocalAccess(request);const projects=await repository.list();return json({projects:new URL(request.url).searchParams.get('view')==='summary'?projects.map(projectSummary):projects})},{directory:repository.diagnosticsDirectory,operation:'project.list'}),
     create:(request:Request)=>handle(async()=>{
       assertLocalAccess(request,true)
       const input=createProjectSchema.parse(await body(request))
       return json({project:await repository.create(input)},201)
-    }),
+    },{directory:repository.diagnosticsDirectory,operation:'project.create'}),
     get:(request:Request,id:string)=>handle(async()=>{
       assertLocalAccess(request)
       const query=new URL(request.url).searchParams,view=query.get('view')??'full'
@@ -52,12 +58,12 @@ export function createProjectHandlers(repository:ProjectRepository) {
       const response=json({project:view==='workspace'?workspaceProject(p):p})
       if(tag&&before===after)response.headers.set('ETag',tag)
       return response
-    }),
+    },{directory:repository.diagnosticsDirectory,operation:'project.get',projectId:id}),
     patch:(request:Request,id:string)=>handle(async()=>{
       assertLocalAccess(request,true)
       const input=patchProjectSchema.parse(await body(request))
       const project=await repository.update(id,input.expectedRevision,p=>({...reviseBrief(p,input.brief),name:input.name}))
       return json({project})
-    }),
+    },{directory:repository.diagnosticsDirectory,operation:'project.update',projectId:id}),
   }
 }

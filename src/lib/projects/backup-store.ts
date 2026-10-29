@@ -43,7 +43,7 @@ export class LocalBackupStore{
    const result=envelope.parse(raw)
    if(result.id!==id||result.projectId!==projectId||result.data.id!==projectId)throw Error()
    return result
-  }catch{throw new ProjectError('CORRUPT','Bản sao lưu không đọc được hoặc không qua kiểm tra toàn vẹn. Chọn bản khác; bản gốc được giữ nguyên.')}
+  }catch(error){throw new ProjectError('CORRUPT','Bản sao lưu không đọc được hoặc không qua kiểm tra toàn vẹn. Chọn bản khác; bản gốc được giữ nguyên.',error)}
  }
  async importFile(input:z.infer<typeof envelope>){
   const saved=backupEnvelope(input),path=this.path(saved.projectId,saved.id)
@@ -102,9 +102,9 @@ export class LocalBackupStore{
    try{const old=(await this.list(parsed.id)).filter(b=>b.valid&&b.id!==id).slice(29);for(const b of old)await unlink(this.path(parsed.id,b.id)).catch(()=>{})}catch{}
    await this.recordHealth(true).catch(()=>{})
    return id
-  }catch{
+  }catch(error){
    await this.recordHealth(false).catch(()=>{})
-   throw new ProjectError('CORRUPT','Không tạo được bản sao lưu trên máy. Kiểm tra dung lượng hoặc quyền ghi rồi thử lại.')
+   throw new ProjectError('CORRUPT','Không tạo được bản sao lưu trên máy. Kiểm tra dung lượng hoặc quyền ghi rồi thử lại.',error)
   }
  }
  async captureSafely(project:Project){try{await this.capture(project)}catch{/* Reported in backup health; never turn an already committed checkpoint into an ambiguous AI retry. */}}

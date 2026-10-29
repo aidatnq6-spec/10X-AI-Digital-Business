@@ -6,6 +6,7 @@ import { icaPreset } from '@/lib/projects/ica-preset'
 import { getProject, getWorkspaceProject, listProjectSummaries, ProjectApiError, saveProject, sendWorkflowCommand } from '@/lib/projects/client'
 import { ProjectBriefForm, type FieldIssue } from '@/components/project-brief-form'
 import { Button } from '@/components/ui/button'
+import { DiagnosticsPanel } from '@/components/diagnostics-panel'
 import { BackupPanel } from '@/components/backup-panel'
 import { ProjectProgress,type CommandAction } from '@/components/project-progress'
 import { useProjectSync } from '@/hooks/use-project-sync'
@@ -146,6 +147,7 @@ export function ProjectWorkspace({current,onGo}:{current:number|null;onGo:(index
       </div>:<><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-mute">{dirty?'Có thay đổi chưa lưu tại Sản phẩm Win. Bên dưới là phiên bản đã lưu gần nhất.':'Thông tin được dùng chung, bạn không cần nhập lại ở tab này.'}</p><Button variant="outline" className="min-h-11" onClick={()=>onGo(0)}><PencilLine aria-hidden/>Chỉnh sửa tại Sản phẩm Win</Button></div>{project?<BriefSummary project={project}/>:<p className="text-mute">Chưa có đề bài. Hãy lưu thông tin tại Sản phẩm Win trước.</p>}<p className="mt-5 rounded-xl border border-dashed border-line2 p-4 text-sm text-mute">Phần quy trình bên dưới hiển thị kết quả đã lưu, với nhãn phân biệt AI thật và dữ liệu mẫu.</p></>}
     </>}
   </section>
+  <DiagnosticsPanel/>
   <BackupPanel project={project} blocked={dirty||contentDirty} busy={busy||loading} onBusy={setBusy} onRestored={restored=>{
     projectRef.current=restored;setProject(restored);setDraft(structuredClone(restored.brief));setDirty(false);setContentDirty(false);setConflict(null);setIssues([]);setError('');setLoadError(false);remember(restored.id);setProjects(items=>[restored,...items.filter(p=>p.id!==restored.id)]);pendingRequest.current=null;createRequestId.current=null;followRef.current=false;setFollowing(false);autoTarget.current=null;onGo(0);setMessage('Đã mở bản khôi phục riêng. Bản gốc vẫn được giữ; AI chưa chạy.')
   }}/>

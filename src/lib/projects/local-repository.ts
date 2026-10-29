@@ -1,3 +1,4 @@
+import { diagnosticContext,diagnosticStep } from '../diagnostics/server'
 import { randomUUID,createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, open, rename, unlink, rmdir, stat } from 'node:fs/promises'
 import { hostname } from 'node:os'
@@ -12,6 +13,7 @@ const delay = (ms:number) => new Promise(resolve => setTimeout(resolve,ms))
 function isCode(error:unknown,code:string) { return (error as NodeJS.ErrnoException)?.code===code }
 
 export class LocalProjectRepository implements ProjectRepository {
+  get diagnosticsDirectory(){return join(this.root,'.diagnostics')}
   readonly backups:LocalBackupStore
   constructor(private readonly root=process.env.MISSION_CONTROL_DATA_DIR??join(process.cwd(),'.local','projects')) {this.backups=new LocalBackupStore(root)}
   private directory(id:string) {
@@ -21,17 +23,19 @@ export class LocalProjectRepository implements ProjectRepository {
   async versionTag(id:string):Promise<string> {
     const file=join(this.directory(id),'state.json')
     try {
-      const s=await stat(file,{bigint:true})
+      const s=await diagnosticStep('repository.read',()=>stat(file,{bigint:true}))
       return '"'+createHash('sha256').update([id,s.ino,s.size,s.mtimeNs,s.ctimeNs].join(':')).digest('hex')+'"'
     }catch(error){if(isCode(error,'ENOENT'))throw new ProjectError('NOT_FOUND','Không tìm thấy dự án.');throw error}
   }
   async get(id:string):Promise<Project> {
+    return diagnosticContext({directory:this.diagnosticsDirectory,projectId:id},()=>diagnosticStep('repository.read',async()=>{
     const directory=this.directory(id)
     let data:string
     try { data=await readFile(join(directory,'state.json'),'utf8') }
     catch(error) { if(isCode(error,'ENOENT')) throw new ProjectError('NOT_FOUND','Không tìm thấy dự án.'); throw error }
     try { return projectSchema.parse(JSON.parse(data)) }
-    catch { throw new ProjectError('CORRUPT','Không đọc được dữ liệu dự án. Hãy giữ bản gốc để phục hồi; không tạo đè lên dữ liệu này.') }
+    catch(error) { throw new ProjectError('CORRUPT','Không đọc được dữ liệu dự án. Hãy giữ bản gốc để phục hồi; không tạo đè lên dữ liệu này.',error) }
+    }))
   }
   async list() {
     await mkdir(this.root,{recursive:true})
@@ -62,13 +66,15 @@ export class LocalProjectRepository implements ProjectRepository {
     throw new ProjectError('BUSY','Dữ liệu đang bị khóa. Thử lưu lại; nếu vẫn lỗi sau khi mở lại ứng dụng, cần phục hồi khóa trước khi lưu.')
   }
   private async write(directory:string,project:Project) {
+    return diagnosticStep('repository.write',async()=>{
     const path=join(directory,`${randomUUID()}.tmp`)
     try {
       const file=await open(path,'wx')
       try { await file.writeFile(JSON.stringify(project,null,2),'utf8'); await file.sync() }
       finally { await file.close() }
-      await rename(path,join(directory,'state.json'))
+      await diagnosticStep('repository.commit',()=>rename(path,join(directory,'state.json')))
     } finally { await unlink(path).catch(error=>{if(!isCode(error,'ENOENT')) throw error}) }
+    })
   }
   async create(input:{name:string;brief:Brief;requestId?:string}) {
     const value=createProjectSchema.parse(input)
@@ -105,7 +111,7 @@ export class LocalProjectRepository implements ProjectRepository {
     const directory=this.directory(id)
     // Read before locking so missing projects return NOT_FOUND instead of filesystem errors.
     await this.get(id)
-    const release=await this.lock(directory)
+    const release=await diagnosticStep('repository.lock',()=>this.lock(directory))
     try {
       const current=await this.get(id)
       if(current.revision!==expectedRevision) throw new ProjectError('CONFLICT','Dự án đã được sửa ở cửa sổ khác. Tải bản đã lưu để đối chiếu; bản đang nhập vẫn được giữ.')
@@ -113,11 +119,11 @@ export class LocalProjectRepository implements ProjectRepository {
       const changed=JSON.stringify(next.brief)!==JSON.stringify(current.brief)
       const now=new Date().toISOString()
       const project=projectSchema.parse({...next,id:current.id,createdAt:current.createdAt,revision:current.revision+1,updatedAt:now,briefVersion:current.briefVersion+(changed?1:0),workflowEpoch:changed?current.workflowEpoch+1:next.workflowEpoch,briefVersions:changed?[...current.briefVersions,{version:current.briefVersion+1,brief:next.brief,savedAt:now}]:current.briefVersions})
-      await this.backups.capture(current)
+      await diagnosticStep('backup.capture',()=>this.backups.capture(current))
       await this.write(directory,project)
       await this.backups.captureSafely(project)
       return project
-    } finally { await release() }
+    } finally { await diagnosticStep('repository.release',release) }
   }
 
   async unreadableProjects(){

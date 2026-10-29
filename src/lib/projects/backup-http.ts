@@ -8,7 +8,7 @@ const command=z.discriminatedUnion('type',[
 ])
 export function backupHandlers(repo:LocalProjectRepository){
  return {
-  GET:(request:Request)=>handle(async()=>{assertLocalAccess(request);return json({backups:await repo.backups.list(),health:await repo.backups.health(),unreadableProjects:await repo.unreadableProjects()})}),
+  GET:(request:Request)=>handle(async()=>{assertLocalAccess(request);return json({backups:await repo.backups.list(),health:await repo.backups.health(),unreadableProjects:await repo.unreadableProjects()})},{directory:repo.diagnosticsDirectory,operation:'backup'}),
   POST:(request:Request)=>handle(async()=>{
    assertLocalAccess(request,true)
    const input=command.parse(await body(request))
@@ -18,6 +18,6 @@ export function backupHandlers(repo:LocalProjectRepository){
     return json({backupId:id})
    }
    return json({project:await repo.restoreBackup(input.projectId,input.backupId,input.requestId)},201)
-  }),
+  },{directory:repo.diagnosticsDirectory,operation:'backup'}),
  }
 }

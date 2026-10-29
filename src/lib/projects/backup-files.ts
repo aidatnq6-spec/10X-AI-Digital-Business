@@ -13,7 +13,7 @@ export function backupFileHandlers(repo:LocalProjectRepository){return {
   const response=json(backupEnvelope(saved))
   response.headers.set('Content-Disposition',`attachment; filename="10x-backup-${saved.id}.json"`)
   return response
- }),
+ },{directory:repo.diagnosticsDirectory,operation:'backup'}),
  POST:(request:Request)=>handle(async()=>{
   assertLocalAccess(request,true)
   const input=command.parse(await body(request,32*1024*1024+1024))
@@ -22,5 +22,5 @@ export function backupFileHandlers(repo:LocalProjectRepository){return {
   if(Math.max(Buffer.byteLength(JSON.stringify(input.backup),'utf8'),Buffer.byteLength(JSON.stringify(backupEnvelope(saved)),'utf8'))>32*1024*1024)return json({error:'Tệp sao lưu vượt quá 32 MiB.'},400)
   await repo.backups.importFile(saved)
   return json({project:await repo.restoreBackup(saved.projectId,saved.id,input.requestId)},201)
- }),
+ },{directory:repo.diagnosticsDirectory,operation:'backup'}),
 }}

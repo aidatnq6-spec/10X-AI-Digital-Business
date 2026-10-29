@@ -1,3 +1,4 @@
+import { diagnosticContext,diagnosticStep,reportDiagnostic,diagnosticReference } from '../diagnostics/server'
 import { hostname } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -64,21 +65,24 @@ export async function recoverExpired(repo:ProjectRepository,now=Date.now()){
  }
 }
 export async function runOnce(repo:ProjectRepository,provider:WorkflowProvider,owner:WorkerOwner){
- const claim=await claimNext(repo,owner);if(!claim)return false
+ const claim=await diagnosticContext({source:'worker',directory:repo.diagnosticsDirectory,operation:'worker.job'},()=>diagnosticStep('worker.claim',()=>claimNext(repo,owner)));if(!claim)return false
  const {projectId,job}=claim
- const heartbeat=setInterval(()=>{void transact(repo,projectId,p=>({...p,jobs:p.jobs.map(j=>j.id===job.id&&j.ownerId===owner.id&&['dispatching','running'].includes(j.status)?{...j,leaseUntil:Date.now()+30000}:j)})).catch(()=>{})},5000)
+ return diagnosticContext({source:'worker',directory:repo.diagnosticsDirectory,operation:'worker.job',projectId,jobId:job.id,systemId:job.systemId},async()=>{
+ const heartbeat=setInterval(()=>{void transact(repo,projectId,p=>({...p,jobs:p.jobs.map(j=>j.id===job.id&&j.ownerId===owner.id&&['dispatching','running'].includes(j.status)?{...j,leaseUntil:Date.now()+30000}:j)})).catch(e=>{void reportDiagnostic(e,{operation:'worker.heartbeat'})})},5000)
  try{
-  await provider.prepare?.(job)
+  await diagnosticStep('provider.prepare',async()=>{await provider.prepare?.(job)})
   const running=await transact(repo,projectId,p=>({...p,jobs:p.jobs.map(j=>j.id===job.id&&j.ownerId===owner.id&&j.status==='dispatching'?{...j,status:'running',sentAt:job.mode==='openrouter'?new Date().toISOString():null,usage:job.mode==='openrouter'?unknownUsage:zeroUsage}:j)}))
   if(!running.jobs.some(j=>j.id===job.id&&j.ownerId===owner.id&&j.status==='running'))return true
-  const output=await provider.generate(job)
-  await completeJob(repo,projectId,job.id,owner.id,output)
+  const output=await diagnosticStep('provider.generate',()=>provider.generate(job))
+  await diagnosticStep('worker.complete',()=>completeJob(repo,projectId,job.id,owner.id,output))
  }catch(e){
+  const diagnostic=await reportDiagnostic(e)
   const error=e instanceof ProviderError?e:new ProviderError(job.mode==='sample'?'Bước mẫu không hoàn thành.':'Không rõ kết quả AI; cần đối chiếu trước khi thử lại.',job.mode==='openrouter')
   await transact(repo,projectId,p=>{
    if(!p.jobs.some(j=>j.id===job.id&&j.ownerId===owner.id&&['dispatching','running'].includes(j.status)))return p
-   return {...p,status:'failed',workflow:{...p.workflow,error:error.message},jobs:p.jobs.map(j=>j.id===job.id?{...j,status:error.uncertain?'needs_reconciliation':'failed',providerRequestId:error.providerRequestId,usage:job.mode==='sample'?zeroUsage:error.usage,error:error.message,finishedAt:new Date().toISOString(),leaseUntil:null}:j)}
+   return {...p,status:'failed',workflow:{...p.workflow,error:error.message+' '+diagnosticReference(diagnostic)},jobs:p.jobs.map(j=>j.id===job.id?{...j,status:error.uncertain?'needs_reconciliation':'failed',providerRequestId:error.providerRequestId,usage:job.mode==='sample'?zeroUsage:error.usage,error:error.message,finishedAt:new Date().toISOString(),leaseUntil:null}:j)}
   })
  }finally{clearInterval(heartbeat)}
  return true
+ })
 }

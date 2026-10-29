@@ -1,3 +1,4 @@
+import { diagnosticContext,diagnosticStep,reportDiagnostic,diagnosticReference } from '../src/lib/diagnostics/server'
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { hostname } from 'node:os'
@@ -22,8 +23,8 @@ async function main(){
  const stop=()=>{stopping=true;server.close()};process.on('SIGINT',stop);process.on('SIGTERM',stop)
  console.log(`Mission Control worker ready on 127.0.0.1:${port}`)
  while(!stopping){
-  try{if(Date.now()-lastBackupAt>=15*60*1000){await repo.backupAll();lastBackupAt=Date.now()}await recoverExpired(repo);const worked=await runOnce(repo,provider,owner);lastError=null;if(!worked)await new Promise(r=>setTimeout(r,300))}
-  catch{lastError='Không xử lý được kho dự án. Dữ liệu được giữ nguyên.';await new Promise(r=>setTimeout(r,1000))}
+  try{if(Date.now()-lastBackupAt>=15*60*1000){await repo.backupAll();lastBackupAt=Date.now()}await diagnosticContext({source:'worker',directory:repo.diagnosticsDirectory,operation:'worker.poll'},()=>diagnosticStep('worker.recover',()=>recoverExpired(repo)));const worked=await runOnce(repo,provider,owner);lastError=null;if(!worked)await new Promise(r=>setTimeout(r,300))}
+  catch(e){const diagnostic=await reportDiagnostic(e,{source:'worker',directory:repo.diagnosticsDirectory,operation:'worker.poll'});lastError='Không xử lý được kho dự án. Dữ liệu được giữ nguyên. '+diagnosticReference(diagnostic);await new Promise(r=>setTimeout(r,1000))}
  }
 }
 main().catch(()=>{console.error('Không khởi động được worker; kiểm tra cổng và kho dữ liệu.');process.exitCode=1})
