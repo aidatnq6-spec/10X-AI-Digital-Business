@@ -62,6 +62,11 @@ test('budget explains exhausted funds and unsaved settings never change the appl
  const budget=page.getByTestId('ai-budget'),settings=page.getByTestId('openrouter-settings')
  await expect(budget).toContainText('thiếu 0.620000 USD')
  await expect(budget).toContainText('Bạn tự đối chiếu: 1.000000 USD')
+ for(const width of [1024,1440]) {
+  await page.setViewportSize({width,height:1000})
+  const cells=await budget.locator('dl > div').evaluateAll(elements=>elements.map(element=>element.getBoundingClientRect().width))
+  expect(Math.min(...cells)).toBeGreaterThan(180)
+ }
  await settings.locator('summary').click()
  await settings.getByLabel('Ngân sách dự toán (USD)',{exact:true}).fill('5')
  await expect(settings).toContainText('Chưa lưu thay đổi')

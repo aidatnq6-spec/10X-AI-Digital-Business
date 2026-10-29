@@ -91,7 +91,7 @@ export function RunView({ sys, run, onPause, onSpeed, onSkip, onRestart, onOpenK
           <div className="grid grid-cols-[repeat(auto-fill,minmax(112px,1fr))] gap-2">
             {sys.kit.map((k, j) =>
               run.unlocked.includes(j) ? (
-                <button key={k.name} onClick={() => onOpenKit(j)} className="flex min-h-16 flex-col justify-between gap-1.5 rounded-[10px] border border-[#1f5a43] bg-[#0d1f1a] p-2.5 text-left text-xs text-foreground hover:border-ok">
+                <button key={k.name} onClick={() => onOpenKit(j)} className="flex min-h-16 flex-col justify-between gap-1.5 rounded-[10px] border border-ok/40 bg-ok/5 p-2.5 text-left text-xs text-foreground hover:border-ok">
                   <span>{f(k.name)}</span>
                   <small className="font-mono text-[10px] tracking-[.06em] text-ok">SẴN SÀNG</small>
                 </button>

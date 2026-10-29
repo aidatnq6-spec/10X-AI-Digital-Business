@@ -21,7 +21,7 @@ test('owner runs five systems with exactly two gates, sees combined output and r
  await page.getByRole('button',{name:'Dùng CTA chung, bỏ chỗ thiếu liên hệ'}).click()
  await expect(page.getByRole('button',{name:'Duyệt 2 và tiếp tục'})).toBeEnabled()
  const card=page.locator('details').filter({has:page.locator('summary').filter({hasText:'Bài đăng Facebook'})}).first()
- await card.locator(':scope > summary').click()
+ if(await card.getAttribute('open')===null) await card.locator(':scope > summary').click()
  await card.getByRole('button',{name:'Sửa nội dung',exact:true}).click()
  const editor=page.getByLabel('Sửa nội dung',{exact:true})
  const text=await editor.inputValue();await editor.fill(text+'\nDòng do chủ ứng dụng chỉnh sửa.')
@@ -59,7 +59,7 @@ test('concurrent revisions leave the unsaved editor accessible and prevent switc
  await page.goto('/#he-thong-1')
  const artifact=(await (await request.get(`/api/projects/${project.id}`)).json()).project.artifacts.find((a:{status:string})=>a.status!=='stale')
  const card=page.locator('details').filter({has:page.locator('summary').filter({hasText:'Định vị và bộ chào bán'})}).first()
- await card.locator(':scope > summary').click()
+ if(await card.getAttribute('open')===null) await card.locator(':scope > summary').click()
  await card.getByRole('button',{name:'Sửa nội dung',exact:true}).click()
  const draft=artifact.content+'\nBản đang nhập chưa lưu của tôi.'
  await page.getByLabel('Sửa nội dung',{exact:true}).fill(draft)

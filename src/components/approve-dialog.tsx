@@ -26,7 +26,7 @@ export function ApproveDialog({ sys, run, onConfirm }: { sys: System; run: Run; 
               onClick={() => setSel(j)}
               className={cn('relative flex items-center gap-3 rounded-xl border bg-surface2 p-3 text-left md:flex-col md:items-stretch md:gap-2', sel === j ? 'border-ok ring-1 ring-ok' : 'border-line2')}
             >
-              {j === 0 && <span className="absolute left-2 top-2 z-[1] rounded bg-ok px-1.5 py-[3px] font-mono text-[9px] text-[#04110b]">ĐỀ XUẤT</span>}
+              {j === 0 && <span className="absolute left-2 top-2 z-[1] rounded bg-ok px-1.5 py-[3px] font-mono text-[9px] text-white">ĐỀ XUẤT</span>}
               {a.cover && <Cover style={o.style} niche={niche} className="w-14 shrink-0 md:w-full" />}
               <div>
                 <b className="text-[13px] font-semibold">{o.name}</b>

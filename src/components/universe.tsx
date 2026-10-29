@@ -170,7 +170,7 @@ export function Universe({ statuses, onOpen }: { statuses: ('idle' | 'running' |
       onPointerLeave={() => { hoverRef.current = false }}
       onPointerCancel={() => { hoverRef.current = false }}
       aria-label="Vũ trụ 5 hệ thống"
-      className="relative flex min-h-[680px] flex-1 flex-col justify-between overflow-hidden rounded-2xl border border-line bg-[radial-gradient(ellipse_at_50%_100%,#0a1a2e_0%,var(--color-background)_62%)]"
+      className="universe-preview relative flex min-h-[680px] flex-1 flex-col justify-between overflow-hidden rounded-2xl border border-line bg-[radial-gradient(ellipse_at_50%_100%,#0a1a2e_0%,var(--color-background)_62%)]"
     >
       <canvas ref={canvas} aria-hidden className="absolute inset-0 size-full" />
       <div className="pointer-events-none relative z-10 p-5 md:absolute md:left-6 md:top-5 md:max-w-sm md:p-0">

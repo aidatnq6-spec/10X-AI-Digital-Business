@@ -7,7 +7,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-foreground text-background hover:bg-white',
+        default: 'bg-glow text-white hover:bg-glow/90',
         accent: 'bg-accent text-white hover:bg-accent/90',
         outline: 'border border-line2 text-foreground hover:border-foreground',
         ghost: 'text-mute hover:text-foreground',

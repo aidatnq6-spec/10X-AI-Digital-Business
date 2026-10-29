@@ -22,6 +22,14 @@ Không nhầm với repository đầu tư cổ phiếu `D:\GitHub\dautucophieu` 
 
 ## 2. Công việc đã hoàn tất
 
+### Workspace B — cập nhật mới nhất ngày 29/10/2026
+
+- Người dùng chọn B và yêu cầu “làm luôn”. Đã áp dụng nền sáng, sidebar desktop, điều hướng mobile, trang tổng quan và cột thao tác bên phải nội dung. Bản thảo mở sẵn; nút duyệt đặt ở đầu cột thao tác. Giữ nguyên nghiệp vụ và dữ liệu.
+- Baseline `f9fa76f`; thay đổi lượt này chưa commit. Xem [kế hoạch/kết quả Workspace B](plans/2026-10-29-workspace-b.md).
+- Kiểm chứng trong phiên này: TypeScript và production build đạt; workflow 85/85; Chrome 20/20. Đã xem ảnh desktop, mobile390px và bảng ngân sách. Reviewer độc lập phát hiện hai lỗi hiển thị; cả hai đã có regression RED → GREEN.
+- Web3220 và worker3230 báo đúng root/dataDir, workflow-health online. Hash state.json thật không đổi sau startup; dự án vẫn paused, không chủ động gọi AI tính phí. Launcher có bước xác minh CIM chậm trong môi trường này; web đã lên, worker được mở trực tiếp bằng entry point hiện có. Không sửa launcher.
+- Chi tiết nhỏ còn lại: nút chuyển vùng Đề bài/Kết quả/Quản lý cuộn đến heading nhưng giữ focus bàn phím tại nút; skip link đầu trang chuyển focus vào main. Không còn finding Important chưa sửa.
+
 ### Vận hành và hiệu năng — nhóm 1 và 3
 
 - Trạng thái đồng bộ, mất kết nối, lý do chờ/dừng và hướng xử lý.
@@ -92,7 +100,7 @@ Không tác động dịch vụ bản khác ở3200/3210. E2E dùng3201/3211 v�
 
 ## 6. Nhiệm vụ tiếp theo
 
-**Chưa có nhiệm vụ tính năng mới được giao.** Yêu cầu hiện tại là tạo tài liệu bàn giao.
+**Cập nhật ngày 29/10/2026:** đã triển khai **B — Workspace sáng** theo yêu cầu “làm luôn”, kiểm chứng và mở ứng dụng local. Chưa có nhiệm vụ tính năng mới tiếp theo. Bản phác thảo và quyết định nằm tại [hướng giao diện](design/2026-10-29-interface-directions/README.md).
 
 Đề xuất đã trao đổi, **chưa duyệt triển khai**: đánh giá chất lượng đầu ra AI từ một dự án thực tế và nội dung đã có, ưu tiên **Sản phẩm Win** và **Chuyển đổi**. Tiêu chí gợi ý: đúng đầu vào, không bịa thông số/giá, đủ nội dung, nhất quán và có thể sử dụng.
 

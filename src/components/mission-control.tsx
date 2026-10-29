@@ -4,6 +4,7 @@ import { SYSTEMS } from '@/data/systems'
 import { choose, finishNow, newRun, runStatus, startRun, tick } from '@/lib/engine'
 import type { Run } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Eyebrow } from '@/components/ui/card'
 import { Nav } from '@/components/nav'
 import { Universe } from '@/components/universe'
@@ -18,6 +19,7 @@ export function MissionControl() {
   const [runs, setRuns] = useState<Record<number, Run>>({})
   const [cur, setCur] = useState<number | null>(null)
   const [kit, setKit] = useState<number | null>(null)
+  const [showUniverse, setShowUniverse] = useState(false)
 
   const update = useCallback((i: number, fn: (r: Run) => Run) => {
     setRuns((p) => {
@@ -70,12 +72,31 @@ export function MissionControl() {
   }
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-[1280px] flex-col px-4 pb-[env(safe-area-inset-bottom)]">
+    <div className="workspace-shell">
+      <a className="skip-link" href="#workspace-main" onClick={event => { event.preventDefault(); document.getElementById('workspace-main')?.focus(); document.getElementById('workspace-main')?.scrollIntoView() }}>Đến nội dung chính</a>
       <Nav current={cur} statuses={statuses} onGo={go} />
-      <main className="flex min-h-0 flex-1 flex-col">
+      <div className="workspace-body">
+      <div className="workspace-topbar">
+        <div><p className="text-xs font-medium uppercase tracking-widest text-dim">Không gian làm việc</p><h1 className="mt-1 font-display text-2xl font-semibold">{sys?.name ?? 'Tổng quan hệ thống'}</h1></div>
+        <span className="hidden text-sm text-mute sm:block">10X Mission Control</span>
+      </div>
+      <main id="workspace-main" tabIndex={-1} className="flex min-h-0 flex-1 flex-col outline-none">
         <ProjectWorkspace current={cur} onGo={go} />
         {sys === null || run === null || cur === null ? (
-          <Universe statuses={statuses} onOpen={go} />
+          <>
+            <section aria-label="Năm hệ thống làm việc" className="my-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {SYSTEMS.map((system, index) => <article key={system.id} className="flex flex-col rounded-xl border border-line bg-surface p-6">
+                <p className="font-mono text-xs text-glow">HỆ THỐNG 0{system.id}</p>
+                <h2 className="mt-4 font-display text-xl font-semibold">{system.name}</h2>
+                <p className="mb-6 mt-3 flex-1 text-sm leading-relaxed text-mute">{system.blurb}</p>
+                <Button variant="outline" className="self-start" onClick={() => go(index)}>Vào {system.name}</Button>
+              </article>)}
+            </section>
+            <details className="mb-4 rounded-xl border border-line bg-surface p-4" onToggle={event => setShowUniverse(event.currentTarget.open)}>
+              <summary className="cursor-pointer text-sm text-mute">Khám phá bản mô phỏng vũ trụ</summary>
+              {showUniverse ? <div className="mt-4"><Universe statuses={statuses} onOpen={go} /></div> : null}
+            </details>
+          </>
         ) : (
           <details className="mb-4 rounded-2xl border border-line p-4">
             <summary className="cursor-pointer py-2 text-sm text-mute">Xem bản mô phỏng giao diện cũ · chưa dùng đề bài đã lưu</summary>
@@ -122,6 +143,7 @@ export function MissionControl() {
         
         <span className="min-w-0 flex-1 text-mute">AI chạy theo model và hạn mức bạn chọn</span>
       </footer>
+      </div>
     </div>
   )
 }

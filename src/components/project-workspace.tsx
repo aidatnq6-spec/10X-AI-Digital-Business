@@ -134,7 +134,11 @@ export function ProjectWorkspace({current,onGo}:{current:number|null;onGo:(index
     } finally {setBusy(false)}
   }
   if(current===null) return <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line2 bg-surface px-5 py-4"><div><p className="font-semibold">Bắt đầu từ một đề bài</p><p className="mt-1 text-sm text-mute">{loading?'Đang mở kho dự án…':project?`Đã có đề bài: ${project.name}`:'Nhập đề bài rồi chạy thử chuỗi 5 hệ thống với 2 điểm duyệt.'}</p></div><Button className="min-h-11" onClick={()=>onGo(0)}>Mở Sản phẩm Win<ArrowRight aria-hidden/></Button></div>
-  return <><SyncStatus sync={sync}/><section aria-labelledby="shared-brief-heading" className="mb-6 rounded-2xl border border-line2 bg-surface p-4 sm:p-6">
+  return <><SyncStatus sync={sync}/>
+  <nav aria-label="Nội dung dự án" className="mb-5 flex flex-wrap gap-2 border-b border-line pb-3">
+    {[['shared-brief-heading','Đề bài'],['workflow-heading','Kết quả & quy trình'],['backup-heading','Quản lý dữ liệu']].map(([id,label])=><button key={id} type="button" className="min-h-11 rounded-lg px-4 text-sm font-medium text-mute hover:bg-surface hover:text-glow" onClick={()=>document.getElementById(id)?.scrollIntoView({block:'start'})}>{label}</button>)}
+  </nav>
+  <section aria-labelledby="shared-brief-heading" className="mb-6 rounded-2xl border border-line2 bg-surface p-4 sm:p-6">
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><p className="font-mono text-xs uppercase tracking-widest text-glow">Đề bài chung · Đã có luồng Mốc B</p><h2 id="shared-brief-heading" className="mt-2 font-display text-xl font-semibold">{current===0?'Sản phẩm Win':'Đề bài chung của dự án'}</h2></div>{project?<span className="flex items-center gap-1.5 rounded-full border border-ok/40 px-3 py-1.5 text-xs text-ok"><Check className="size-3.5" aria-hidden/>Đã lưu · Phiên bản {project.briefVersion}</span>:null}</div>
     {loading?<p role="status" className="py-8 text-mute">Đang tải đề bài đã lưu…</p>:<>
       {error?<div role="alert" className="mb-4 rounded-xl border border-warn/50 p-4 text-sm text-warn"><p>{error}</p>{!dirty&&!project?<Button variant="outline" className="mt-3 min-h-11" onClick={()=>setReload(x=>x+1)}><RefreshCw aria-hidden/>Thử tải lại</Button>:null}</div>:null}
@@ -147,10 +151,11 @@ export function ProjectWorkspace({current,onGo}:{current:number|null;onGo:(index
       </div>:<><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-mute">{dirty?'Có thay đổi chưa lưu tại Sản phẩm Win. Bên dưới là phiên bản đã lưu gần nhất.':'Thông tin được dùng chung, bạn không cần nhập lại ở tab này.'}</p><Button variant="outline" className="min-h-11" onClick={()=>onGo(0)}><PencilLine aria-hidden/>Chỉnh sửa tại Sản phẩm Win</Button></div>{project?<BriefSummary project={project}/>:<p className="text-mute">Chưa có đề bài. Hãy lưu thông tin tại Sản phẩm Win trước.</p>}<p className="mt-5 rounded-xl border border-dashed border-line2 p-4 text-sm text-mute">Phần quy trình bên dưới hiển thị kết quả đã lưu, với nhãn phân biệt AI thật và dữ liệu mẫu.</p></>}
     </>}
   </section>
+  {project&&!loading?<ProjectProgress key={project.id} project={project} current={current} onGo={onGo} onAction={action} busy={busy} blocked={dirty} onEditing={onEditing} following={following} onFollow={()=>follow(project)}/>:null}
   <DiagnosticsPanel/>
   <BackupPanel project={project} blocked={dirty||contentDirty} busy={busy||loading} onBusy={setBusy} onRestored={restored=>{
     projectRef.current=restored;setProject(restored);setDraft(structuredClone(restored.brief));setDirty(false);setContentDirty(false);setConflict(null);setIssues([]);setError('');setLoadError(false);remember(restored.id);setProjects(items=>[restored,...items.filter(p=>p.id!==restored.id)]);pendingRequest.current=null;createRequestId.current=null;followRef.current=false;setFollowing(false);autoTarget.current=null;onGo(0);setMessage('Đã mở bản khôi phục riêng. Bản gốc vẫn được giữ; AI chưa chạy.')
   }}/>
-  {project&&!loading?<ProjectProgress key={project.id} project={project} current={current} onGo={onGo} onAction={action} busy={busy} blocked={dirty} onEditing={onEditing} following={following} onFollow={()=>follow(project)}/>:null}
+
   </>
 }

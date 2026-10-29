@@ -2,6 +2,8 @@
 
 Ngày: 29/10/2026. Phác thảo được người dùng yêu cầu để chọn hướng trước khi sửa ứng dụng.
 
+**Lựa chọn đã chốt trong chat ngày 29/10/2026: B — Workspace sáng.** Người dùng đã yêu cầu “làm luôn”; hướng B đã được áp dụng vào ứng dụng. Xem [kế hoạch và kết quả](../../plans/2026-10-29-workspace-b.md). Các bản phác thảo ở đây được giữ để tham chiếu, không tự sửa dữ liệu ứng dụng.
+
 Mở `10X-Interface-Directions.html` bằng Chrome, hoặc phục vụ thư mục này bằng HTTP local để dùng canvas đầy đủ. Font đã đặt tại `assets/`; trang không phụ thuộc CDN và không gọi API ứng dụng.
 
 - **A — Điều khiển tối:** navy/cyan, điều hướng trái, trạng thái vận hành rõ; giữ tinh thần giao diện hiện có.
@@ -14,4 +16,4 @@ Nút chọn hướng và ô ghi chú chỉ ghi localStorage với namespace riê
 
 Logo chữ và font bắt nguồn từ source giao diện hiện có. Nội dung lấy từ fixture ICA và sample provider, không đọc hồ sơ thật. Xem `asset-sources.md` cho nguồn font. Không có ảnh sản phẩm bên ngoài hoặc số liệu doanh thu giả.
 
-Giao diện thật tại cổng3220 và worker3230 không thay đổi. Việc chọn phác thảo chưa tự động cho phép sửa giao diện sản phẩm; xác định phạm vi triển khai sau khi người dùng chọn.
+Giao diện thật tại cổng3220 đã chuyển sang B theo yêu cầu tiếp theo của người dùng; worker3230 vẫn dùng quy trình hiện có. Bản phác thảo vẫn độc lập với ứng dụng.

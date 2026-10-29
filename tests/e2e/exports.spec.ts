@@ -29,7 +29,7 @@ test('owner downloads Vietnamese TXT, Excel CSV and guide without calling AI or 
  const guide=await get('Tải hướng dẫn CSV (TXT)')
  expect(guide.bytes.toString('utf8')).toContain('=E2*F2');expect(guide.bytes.toString('utf8')).toContain('3.080.000')
  const card=page.locator('summary').filter({hasText:/^Định vị và bộ chào bán /}).locator('..')
- await card.locator(':scope > summary').click()
+ if(await card.getAttribute('open')===null) await card.locator(':scope > summary').click()
  const event=page.waitForEvent('download')
  await card.getByRole('button',{name:'Tải TXT nội dung này',exact:true}).click()
  const single=await event
