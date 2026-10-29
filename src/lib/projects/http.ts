@@ -8,11 +8,14 @@ import { workspaceProject,projectSummary } from './read-models'
 const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}
 export function json(body:unknown,status=200) {return Response.json(body,{status,headers})}
 class BodyError extends Error {}
-export async function body(request:Request) {
-  if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) throw new BodyError('Yêu cầu phải có định dạng JSON.')
-  const text=await request.text()
-  if(Buffer.byteLength(text,'utf8')>128*1024) throw new BodyError('Đề bài quá dài. Vui lòng rút gọn nội dung.')
-  try{return JSON.parse(text) as unknown} catch {throw new BodyError('Dữ liệu gửi lên không hợp lệ.')}
+export async function body(request:Request,maxBytes=128*1024) {
+  if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))throw new BodyError('Yêu cầu phải có định dạng JSON.')
+  const reader=request.body?.getReader(),chunks:Uint8Array[]=[];let size=0
+  if(!reader)throw new BodyError('Thiếu dữ liệu JSON.')
+  try{
+    while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>maxBytes){await reader.cancel();throw new BodyError('Dữ liệu vượt quá dung lượng cho phép.')}chunks.push(value)}
+  }finally{reader.releaseLock()}
+  try{return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown}catch{throw new BodyError('Dữ liệu gửi lên không hợp lệ.')}
 }
 export async function handle(action:()=>Promise<Response>) {
   try{return await action()}

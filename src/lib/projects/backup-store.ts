@@ -1,5 +1,5 @@
 import { createHash,randomUUID } from 'node:crypto'
-import { mkdir,readdir,readFile,open,rename,unlink,lstat } from 'node:fs/promises'
+import { mkdir,readdir,readFile,open,rename,unlink,lstat,link } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
 import { projectSchema,type Project } from './schema'
@@ -10,6 +10,14 @@ const envelope=z.object({formatVersion:z.literal(1),id:z.uuid(),projectId:z.uuid
 export type BackupMetadata={id:string;projectId:string;createdAt:string;reason:BackupReason;name:string;revision:number;valid:boolean}
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const isMissing=(e:unknown)=>(e as NodeJS.ErrnoException).code==='ENOENT'
+export function validateBackupEnvelope(raw:unknown){
+ const candidate=z.object({checksum:z.string(),data:z.unknown()}).passthrough().parse(raw)
+ if(candidate.checksum!==hash(candidate.data))throw new z.ZodError([{code:'custom',path:['checksum'],message:'Checksum không hợp lệ.'}])
+ const saved=envelope.parse(raw)
+ if(saved.data.id!==saved.projectId)throw new z.ZodError([{code:'custom',path:['projectId'],message:'Mã dự án không khớp.'}])
+ return saved
+}
+export function backupEnvelope(saved:z.infer<typeof envelope>){return {...saved,checksum:hash(saved.data)}}
 export async function atomicJson(path:string,value:unknown){
  const temporary=path+'.'+randomUUID()+'.tmp'
  try{const f=await open(temporary,'wx');try{await f.writeFile(JSON.stringify(value),'utf8');await f.sync()}finally{await f.close()}await rename(temporary,path)}
@@ -36,6 +44,19 @@ export class LocalBackupStore{
    if(result.id!==id||result.projectId!==projectId||result.data.id!==projectId)throw Error()
    return result
   }catch{throw new ProjectError('CORRUPT','Bản sao lưu không đọc được hoặc không qua kiểm tra toàn vẹn. Chọn bản khác; bản gốc được giữ nguyên.')}
+ }
+ async importFile(input:z.infer<typeof envelope>){
+  const saved=backupEnvelope(input),path=this.path(saved.projectId,saved.id)
+  await mkdir(this.folder(saved.projectId),{recursive:true})
+  const temporary=path+'.'+randomUUID()+'.tmp'
+  try{
+   const f=await open(temporary,'wx');try{await f.writeFile(JSON.stringify(saved),'utf8');await f.sync()}finally{await f.close()}
+   try{await link(temporary,path)}catch(e){
+    if((e as NodeJS.ErrnoException).code!=='EEXIST')throw e
+    const existing=backupEnvelope(await this.read(saved.projectId,saved.id))
+    if(JSON.stringify(existing)!==JSON.stringify(saved))throw new ProjectError('CONFLICT','Mã sao lưu đã chứa dữ liệu khác. Bản đã có được giữ nguyên.')
+   }
+  }finally{await unlink(temporary).catch(e=>{if(!isMissing(e))throw e})}
  }
  async list(projectId?:string):Promise<BackupMetadata[]>{
   if(projectId)this.folder(projectId)

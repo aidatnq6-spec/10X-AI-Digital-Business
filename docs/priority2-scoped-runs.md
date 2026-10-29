@@ -24,6 +24,6 @@ Ngân sách, phí chưa rõ và sự đồng ý chi phí vẫn được kiểm t
 
 ## Kiểm tra triển khai
 
-49 kiểm thử nghiệp vụ/provider đã đạt, gồm phạm vi đơn, retry, bảo toàn bản duyệt, phản hồi đến muộn, CTA không đổi chế độ chạy, chuyển tác vụ chưa gửi và hợp đồng OpenRouter một mục. Giao diện được kiểm tra Chrome với dữ liệu riêng và màn hình 390px. TypeScript và production build đạt. Worker hỗ trợ phạm vi có health version 3; launcher kiểm tra phiên bản này.
+49 kiểm thử nghiệp vụ/provider đã đạt, gồm phạm vi đơn, retry, bảo toàn bản duyệt, phản hồi đến muộn, CTA không đổi chế độ chạy, chuyển tác vụ chưa gửi và hợp đồng OpenRouter một mục. Giao diện được kiểm tra Chrome với dữ liệu riêng và màn hình 390px. TypeScript và production build đạt. Worker hỗ trợ phạm vi có health version 4; launcher kiểm tra phiên bản này.
 
 Dữ liệu dự án thật được so SHA256 sau khi khởi động lại, không thay đổi. Không gọi AI tính phí trong kiểm tra.

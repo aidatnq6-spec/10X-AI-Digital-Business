@@ -42,5 +42,6 @@ export function useProjectSync(id:string|undefined,status:Project['status']|unde
   void read()
   return()=>{disposed=true;generation++;clearTimeout(timer);controller?.abort();document.removeEventListener('visibilitychange',visibility);window.removeEventListener('online',visibility);refreshRef.current=()=>{}}
  },[id])
+ useEffect(()=>{refreshRef.current()},[status])
  return {...state,refresh:useCallback(()=>refreshRef.current(),[])}
 }

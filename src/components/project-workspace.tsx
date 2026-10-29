@@ -3,11 +3,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowRight, Check, FolderOpen, PencilLine, RefreshCw } from 'lucide-react'
 import { briefSchema, emptyBrief, type BriefDraft, type Project } from '@/lib/projects/schema'
 import { icaPreset } from '@/lib/projects/ica-preset'
-import { getProject, listProjects, ProjectApiError, saveProject, sendWorkflowCommand } from '@/lib/projects/client'
+import { getProject, getWorkspaceProject, listProjectSummaries, ProjectApiError, saveProject, sendWorkflowCommand } from '@/lib/projects/client'
 import { ProjectBriefForm, type FieldIssue } from '@/components/project-brief-form'
 import { Button } from '@/components/ui/button'
 import { BackupPanel } from '@/components/backup-panel'
 import { ProjectProgress,type CommandAction } from '@/components/project-progress'
+import { useProjectSync } from '@/hooks/use-project-sync'
+import { SyncStatus } from '@/components/sync-status'
+import type { ProjectSummary } from '@/lib/projects/read-models'
 import type { WorkflowCommand } from '@/lib/workflow/commands'
 
 const activeKey='mission-control.active-project.v1'
@@ -28,7 +31,7 @@ function BriefSummary({project}:{project:Project}) {
 export function ProjectWorkspace({current,onGo}:{current:number|null;onGo:(index:number)=>void}) {
   const createRequestId=useRef<string|null>(null)
   const [project,setProject]=useState<Project|null>(null)
-  const [projects,setProjects]=useState<Project[]>([])
+  const [projects,setProjects]=useState<ProjectSummary[]>([])
   const [draft,setDraft]=useState<BriefDraft>(emptyBrief)
   const [dirty,setDirty]=useState(false)
   const [loading,setLoading]=useState(true)
@@ -63,14 +66,7 @@ export function ProjectWorkspace({current,onGo}:{current:number|null;onGo:(index
     if(autoTarget.current===current){autoTarget.current=null;return}
     followRef.current=false;setFollowing(false)
   },[current])
-  useEffect(()=>{
-    if(!project?.id)return
-    let active=true,running=false
-    const id=project.id
-    const read=async()=>{if(running)return;running=true;try{const next=await getProject(id);if(active)receiveRef.current(next)}catch{/* The last checkpoint remains visible; the next poll retries reading only. */}finally{running=false}}
-    const timer=setInterval(()=>void read(),700)
-    return()=>{active=false;clearInterval(timer)}
-  },[project?.id])
+  const sync=useProjectSync(project?.id,project?.status,incoming=>receiveRef.current(incoming))
   async function action(input:CommandAction):Promise<boolean>{
     if(busy||!project)return false
     const signature=JSON.stringify(input)
@@ -88,12 +84,14 @@ export function ProjectWorkspace({current,onGo}:{current:number|null;onGo:(index
   useEffect(()=>{
     const controller=new AbortController()
     setLoading(true);setLoadError(false);setError('')
-    listProjects(controller.signal).then(items=>{
+    listProjectSummaries(controller.signal).then(async items=>{
       if(controller.signal.aborted) return
       setProjects(items)
       let active:string|null=null
       try{active=localStorage.getItem(activeKey)}catch{/* browser storage is optional */}
-      const selected=items.find(x=>x.id===active)??items[0]??null
+      const summary=items.find(x=>x.id===active)??items[0]??null
+      const selected=summary?await getWorkspaceProject(summary.id,controller.signal):null
+      if(controller.signal.aborted)return
       setProject(selected);setDraft(selected?structuredClone(selected.brief):emptyBrief());setDirty(false)
       if(selected) remember(selected.id)
     }).catch(e=>{if(!controller.signal.aborted) {setLoadError(true);setError(e instanceof Error?e.message:'Không tải được dự án.')}}).finally(()=>{if(!controller.signal.aborted) setLoading(false)})
@@ -107,10 +105,14 @@ export function ProjectWorkspace({current,onGo}:{current:number|null;onGo:(index
   },[dirty,contentDirty])
 
   function edit(next:BriefDraft) {dirtyRef.current=true;setDraft(next);setDirty(true);setIssues([]);setMessage('')}
-  function selectProject(id:string) {
-    const selected=projects.find(p=>p.id===id)
-    if(!selected||dirty||contentDirty||busy) return
-    setProject(selected);setDraft(structuredClone(selected.brief));setConflict(null);setIssues([]);setError('');setMessage('');remember(selected.id)
+  async function selectProject(id:string) {
+    if(!projects.some(p=>p.id===id)||dirty||contentDirty||busy)return
+    setBusy(true);setError('')
+    try{
+      const selected=await getWorkspaceProject(id)
+      projectRef.current=selected;setProject(selected);setDraft(structuredClone(selected.brief));setConflict(null);setIssues([]);setMessage('');remember(id)
+    }catch(e){setError(e instanceof Error?e.message:'Không mở được dự án.')}
+    finally{setBusy(false)}
   }
   async function save() {
     const parsed=briefSchema.safeParse(draft)
@@ -131,7 +133,7 @@ export function ProjectWorkspace({current,onGo}:{current:number|null;onGo:(index
     } finally {setBusy(false)}
   }
   if(current===null) return <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line2 bg-surface px-5 py-4"><div><p className="font-semibold">Bắt đầu từ một đề bài</p><p className="mt-1 text-sm text-mute">{loading?'Đang mở kho dự án…':project?`Đã có đề bài: ${project.name}`:'Nhập đề bài rồi chạy thử chuỗi 5 hệ thống với 2 điểm duyệt.'}</p></div><Button className="min-h-11" onClick={()=>onGo(0)}>Mở Sản phẩm Win<ArrowRight aria-hidden/></Button></div>
-  return <><section aria-labelledby="shared-brief-heading" className="mb-6 rounded-2xl border border-line2 bg-surface p-4 sm:p-6">
+  return <><SyncStatus sync={sync}/><section aria-labelledby="shared-brief-heading" className="mb-6 rounded-2xl border border-line2 bg-surface p-4 sm:p-6">
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><p className="font-mono text-xs uppercase tracking-widest text-glow">Đề bài chung · Đã có luồng Mốc B</p><h2 id="shared-brief-heading" className="mt-2 font-display text-xl font-semibold">{current===0?'Sản phẩm Win':'Đề bài chung của dự án'}</h2></div>{project?<span className="flex items-center gap-1.5 rounded-full border border-ok/40 px-3 py-1.5 text-xs text-ok"><Check className="size-3.5" aria-hidden/>Đã lưu · Phiên bản {project.briefVersion}</span>:null}</div>
     {loading?<p role="status" className="py-8 text-mute">Đang tải đề bài đã lưu…</p>:<>
       {error?<div role="alert" className="mb-4 rounded-xl border border-warn/50 p-4 text-sm text-warn"><p>{error}</p>{!dirty&&!project?<Button variant="outline" className="mt-3 min-h-11" onClick={()=>setReload(x=>x+1)}><RefreshCw aria-hidden/>Thử tải lại</Button>:null}</div>:null}

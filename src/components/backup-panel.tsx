@@ -5,6 +5,7 @@ import type { Project } from '@/lib/projects/schema'
 import { projectSchema } from '@/lib/projects/schema'
 import type { BackupMetadata } from '@/lib/projects/backup-store'
 import { Button } from './ui/button'
+import { PortableBackup } from './portable-backup'
 type Catalog={backups:BackupMetadata[];health:{lastSuccessAt:string|null;lastError:string|null};unreadableProjects:string[]}
 const reason={automatic:'Tự động',manual:'Thủ công','before-restore':'Trước khôi phục'}
 const time=(value:string)=>value?new Date(value).toLocaleString('vi-VN'):'Không đọc được thời gian'
@@ -12,14 +13,16 @@ export function BackupPanel({project,blocked,busy,onBusy,onRestored}:{project:Pr
  const [catalog,setCatalog]=useState<Catalog|null>(null),[error,setError]=useState(''),[message,setMessage]=useState('')
  const [working,setWorking]=useState(false),[loading,setLoading]=useState(false)
  const [filter,setFilter]=useState('current'),[selected,setSelected]=useState(''),[confirm,setConfirm]=useState(false),[consent,setConsent]=useState(false)
+ const readPending=useRef(false)
  const pending=useRef<{key:string;id:string}|null>(null)
  async function load(signal?:AbortSignal){
-  setLoading(true)
+  if(readPending.current||document.visibilityState==='hidden')return
+  readPending.current=true;setLoading(true)
   try{const r=await fetch('/api/backups',{cache:'no-store',signal});const data=await r.json();if(!r.ok)throw Error(data.error);if(!signal?.aborted){setCatalog(data);setError('')}}
   catch(e){if(!signal?.aborted)setError(e instanceof Error?e.message:'Không đọc được danh sách sao lưu.')}
-  finally{if(!signal?.aborted)setLoading(false)}
+  finally{readPending.current=false;if(!signal?.aborted)setLoading(false)}
  }
- useEffect(()=>{const controller=new AbortController();void load(controller.signal);const timer=setInterval(()=>void load(controller.signal),30000);return()=>{controller.abort();clearInterval(timer)}},[project?.id])
+ useEffect(()=>{const controller=new AbortController();void load(controller.signal);const timer=setInterval(()=>void load(controller.signal),30000);const visibility=()=>{if(document.visibilityState!=='hidden')void load(controller.signal)};document.addEventListener('visibilitychange',visibility);return()=>{controller.abort();clearInterval(timer);document.removeEventListener('visibilitychange',visibility)}},[project?.id])
  useEffect(()=>{setSelected('');setConfirm(false);setConsent(false)},[project?.id])
  const entries=(catalog?.backups??[]).filter(b=>filter==='all'||!project||b.projectId===project.id)
  const backup=entries.find(b=>b.id===selected)
@@ -57,5 +60,6 @@ export function BackupPanel({project,blocked,busy,onBusy,onRestored}:{project:Pr
    <Button variant="outline" className="mt-3 min-h-11" disabled={disabled||!backup.valid} onClick={()=>setConfirm(true)}><ArchiveRestore aria-hidden/>Khôi phục bản đã chọn</Button>
    {confirm?<div className="mt-4 rounded-lg border border-warn/40 p-3"><label className="flex min-h-11 items-start gap-3"><input className="mt-1 size-4 shrink-0" type="checkbox" checked={consent} disabled={disabled} onChange={e=>setConsent(e.target.checked)}/>Tôi muốn mở bản sao lưu này thành dự án khôi phục riêng, giữ nguyên bản gốc.</label><div className="mt-3 flex flex-wrap gap-3"><Button className="min-h-11 whitespace-normal" disabled={disabled||!consent} onClick={()=>void mutate('restore')}>Xác nhận khôi phục bản riêng</Button><Button variant="outline" className="min-h-11" disabled={working} onClick={()=>{setConfirm(false);setConsent(false)}}>Hủy khôi phục</Button></div></div>:null}
   </div>:!loading&&catalog&&!entries.length?<p className="mt-4 text-sm text-mute">Chưa có bản sao lưu trong phạm vi này. Lưu một đề bài hoặc bấm Sao lưu ngay.</p>:null}
+  <PortableBackup key={project?.id??"empty"} project={project} disabled={disabled} onBusy={onBusy} onRestored={onRestored}/>
  </section>
 }

@@ -66,3 +66,14 @@ test('attention distinguishes uncertain AI, approval and owner pause without sch
  const unresolved={...p,status:'failed' as const,jobs:[{status:'needs_reconciliation',mode:'openrouter'}] as any}
  assert.equal(projectAttention(unresolved,true)?.kind,'reconciliation')
 })
+
+
+test('attention waits for active paid calls and gives sample-specific recovery instructions',async t=>{
+ const {p}=await setup(t)
+ const active={...p,status:'running' as const,jobs:[{status:'running',mode:'openrouter',sentAt:new Date().toISOString(),usage:{costUsd:null}}] as any}
+ assert.equal(projectAttention(active,true),null)
+ assert.equal(projectAttention({...active,status:'failed',jobs:active.jobs.map((j:{status:string})=>({...j,status:'failed'}))},true)?.kind,'reconciliation')
+ const sample={...p,status:'failed' as const,jobs:[{status:'needs_reconciliation',mode:'sample'}] as any}
+ assert.doesNotMatch(projectAttention(sample,true)!.next,/OpenRouter/)
+ assert.match(projectAttention(sample,true)!.next,/mẫu/)
+})
