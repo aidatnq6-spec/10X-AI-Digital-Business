@@ -93,33 +93,14 @@ npm.cmd run test:e2e
 - Nếu lỗi vẫn xảy ra, giữ mã đối chiếu và kiểm tra bước: `repository.lock`, `repository.commit`, `repository.release`, `provider.*`, `worker.*`.
 - Lỗi release có thể xảy ra sau khi dữ liệu đã lưu; đối chiếu snapshot/receipt trước thao tác tiếp. Cơ chế cleanup/recovery cũ chưa được mở rộng; lỗi cleanup có thể che lỗi trước đó.
 
-## 8. Bàn giao cuối ngày 29/10/2026
+## 8. Đọc trạng thái bàn giao
 
-Đây là mốc lịch sử; phiên sau phải kiểm tra lại Git, dịch vụ và kết quả mới nhất.
+Đọc [docs/HANDOFF.md](docs/HANDOFF.md) để biết công việc đã hoàn tất, commit gần nhất, kết quả kiểm chứng, giới hạn còn lại và nhiệm vụ tiếp theo đã được giao.
 
-- Commit phần mềm gần nhất tại thời điểm soạn file: `b4ad784` — `fix: diagnose errors and handle transient Windows file failures`.
-- Nhánh tại mốc bàn giao: `feat/operations-performance-20261029`. Không tự chuyển nhánh hay bỏ thay đổi để khớp mốc này.
-- Đã hoàn tất đồng bộ thích ứng/ETag, lịch sử tải theo yêu cầu, portable backup, chẩn đoán lỗi và xử lý EPERM tạm thời.
-- Đã sửa race khiến catalog backup kẹt loading khi request đầu bị hủy lúc nạp dự án.
-- Sau sửa review: **85/85 test nghiệp vụ, 18/18 test Chrome**, TypeScript và production build đạt. Đây không phải kết quả test mới cho các thay đổi ở phiên sau.
-- Kiểm chứng cuối: web/worker đúng root và online, `/api/diagnostics` trả 200, hash dữ liệu thật không đổi; không chủ động gọi AI tính phí.
-- Đã xác nhận các điểm EPERM gây 500 trong môi trường này; chưa xác định tiến trình Windows nào gây từ chối và không thể chứng minh tuyệt đối lỗi lịch sử không có log là cùng nguyên nhân.
+Trạng thái dịch vụ và Git có thể thay đổi sau mỗi phiên. Luôn xác minh lại trước khi tiếp tục; không coi kết quả test cũ là bằng chứng cho thay đổi mới. Không tự triển khai đề xuất chưa được người dùng giao.
 
-Tài liệu cần đọc theo nhiệm vụ:
+## 9. Cập nhật tài liệu
 
-- `README.md`: cách vận hành hiện tại.
-- `docs/operations-performance-progress.md`: đợt cải tiến vận hành/hiệu năng.
-- `docs/error-diagnostics-progress.md`: bằng chứng điều tra, review, bản sửa và giới hạn.
-- `docs/plans/2026-10-29-error-diagnostics.md`: kế hoạch đợt chẩn đoán đã thực hiện.
+Giữ hướng dẫn lâu dài trong file này; cuối mỗi đợt công việc cập nhật trạng thái ở `docs/HANDOFF.md`. Bằng chứng điều tra chi tiết để trong tài liệu tương ứng dưới `docs/`. Không lưu hai bản bàn giao trùng nhau, chép toàn bộ hội thoại hoặc ghi bí mật vào tài liệu.
 
-## 9. Bước tiếp theo mới được đề xuất
-
-**Đề xuất, chưa được giao triển khai:** đánh giá chất lượng đầu ra AI bằng một dự án thực tế và nội dung đã có, ưu tiên Sản phẩm Win và Chuyển đổi.
-
-Tiêu chí gợi ý: đúng đầu vào, không bịa thông số/giá, đủ nội dung, nhất quán giữa các hệ thống và có thể dùng trong công việc. Ghi phần đạt/chưa đạt trước khi thay prompt; không tự chạy AI có phí hoặc coi đề xuất này là yêu cầu triển khai.
-
-## 10. Cập nhật file này
-
-Cuối mỗi đợt công việc, cập nhật mốc bàn giao, commit, kiểm chứng, vấn đề còn lại và việc tiếp theo đã được giao. Giữ hướng dẫn lâu dài ngắn gọn; bằng chứng điều tra chi tiết để trong `docs/`. Không chép toàn bộ hội thoại vào file hoặc lưu bí mật tại đây.
-
-Câu giao việc cho phiên sau: **“Đọc CLAUDE.md, kiểm tra trạng thái repository và tài liệu liên quan rồi tiếp tục nhiệm vụ tôi giao.”**
+Câu giao việc cho phiên sau: **“Đọc CLAUDE.md và docs/HANDOFF.md, kiểm tra repository rồi tiếp tục nhiệm vụ tôi giao.”**
