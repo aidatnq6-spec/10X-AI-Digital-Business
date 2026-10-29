@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>10X — So sánh ba hướng giao diện</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="assets/fonts.css">
+  <link rel="stylesheet" href="directions.css">
+</head>
+<body>
+  <!-- Visual system: existing Be Vietnam Pro for body, Bricolage Grotesque
+       for display, JetBrains Mono for identifiers. Viewer type 12/14/16/24/42;
+       full mock body 16px, section heads 24–32px; 8px spacing rhythm.
+       A: navy #0a0f18/#101826, cyan functional accent, compact operations.
+       B: grey #f4f6f9/white, blue functional accent, structured workspace.
+       C: warm #f3efe7/#fffdf8, green functional accent, editorial document.
+       Red 10X wordmark preserved from current nav. No fabricated metrics.
+       All business content is the existing ICA sample, never personal data. -->
+  <header class="viewer-header">
+    <a class="viewer-brand" href="#" id="home"><b class="logo">10X</b><span>AI DIGITAL BUSINESS<span class="brand-sub">Nghiên cứu giao diện · 29.10.2026</span></span></a>
+    <span class="prototype-tag"><span class="tiny-dot"></span> Bản phác thảo độc lập</span>
+  </header>
+
+  <main class="design-canvas">
+    <section class="intro">
+      <div><p class="eyebrow">CÙNG MỘT CÔNG VIỆC. BA CÁCH TRÌNH BÀY.</p><h1>Chọn không gian<br class="desktop-break"> làm việc của bạn.</h1></div>
+      <div class="intro-note"><p>Cả ba hướng đều dùng đề bài <strong>Chữ ký số ICA</strong> và kết quả mẫu đang chờ duyệt. So sánh độ dễ đọc, bố cục và cách thao tác.</p><p class="quiet">Không kết nối dữ liệu thật, không gửi lệnh và không gọi AI.</p></div>
+    </section>
+
+    <nav class="view-switcher" aria-label="Chế độ xem phác thảo">
+      <div class="view-buttons"><button data-view="compare" aria-pressed="true">So sánh cả ba</button><button data-view="a" aria-pressed="false">A · Điều khiển tối</button><button data-view="b" aria-pressed="false">B · Workspace sáng</button><button data-view="c" aria-pressed="false">C · Studio nội dung</button></div>
+      <span class="switcher-note">Bấm “Xem lớn” để thử bố cục đầy đủ</span>
+    </nav>
+
+    <section id="comparison" class="comparison-grid" aria-label="Ba hướng thiết kế">
+      <article class="direction-card" data-direction="a">
+        <header class="direction-heading"><span class="direction-index">A</span><div><h2>Điều khiển tối</h2><p>Gọn · Tập trung · Kỹ thuật</p></div></header>
+        <div class="mock-slot miniature" id="preview-a"></div>
+        <div class="direction-notes"><p>Giữ tinh thần giao diện hiện tại; ưu tiên trạng thái và hành động. Giảm viền lồng nhau, tăng tương phản chữ.</p><div class="palette" aria-label="Bảng màu A"><i style="background:#0a0f18"></i><i style="background:#1a2638"></i><i style="background:#4cc9ff"></i><span>Navy sâu / xanh sáng</span></div><p class="tradeoff">Phù hợp nếu bạn muốn giữ nền tối và theo dõi công việc thường xuyên.</p></div>
+        <footer class="direction-actions"><button class="viewer-button" data-open="a">Xem lớn A <span aria-hidden="true">↗</span></button><button class="choose-button" data-choose="a">Chọn hướng A</button></footer>
+      </article>
+
+      <article class="direction-card recommended" data-direction="b">
+        <header class="direction-heading"><span class="direction-index">B</span><div><h2>Workspace sáng</h2><p>Sạch · Chính xác · Dễ làm quen</p></div><span class="recommend-label">Đề xuất</span></header>
+        <div class="mock-slot miniature" id="preview-b"></div>
+        <div class="direction-notes"><p>Tách điều hướng, nội dung và bước tiếp theo. Nền sáng, lưới rõ và khoảng thở giúp nhập liệu, kiểm tra giá dễ hơn.</p><div class="palette" aria-label="Bảng màu B"><i style="background:#f4f6f9"></i><i style="background:#ffffff"></i><i style="background:#2456dc"></i><span>Trắng / xám / xanh đậm</span></div><p class="tradeoff">Phù hợp cho công việc hằng ngày, nhiều biểu mẫu và nhu cầu nhìn rõ.</p></div>
+        <footer class="direction-actions"><button class="viewer-button" data-open="b">Xem lớn B <span aria-hidden="true">↗</span></button><button class="choose-button" data-choose="b">Chọn hướng B</button></footer>
+      </article>
+
+      <article class="direction-card" data-direction="c">
+        <header class="direction-heading"><span class="direction-index">C</span><div><h2>Studio nội dung</h2><p>Thoáng · Có nhịp · Dễ đọc</p></div></header>
+        <div class="mock-slot miniature" id="preview-c"></div>
+        <div class="direction-notes"><p>Đưa bản thảo thành trung tâm, như một bàn biên tập. Màu giấy ấm và tiêu đề lớn hỗ trợ đọc, soát và chỉnh nội dung.</p><div class="palette" aria-label="Bảng màu C"><i style="background:#f3efe7"></i><i style="background:#fffdf8"></i><i style="background:#315d49"></i><span>Giấy ấm / mực / xanh rêu</span></div><p class="tradeoff">Phù hợp khi bạn dành nhiều thời gian đọc và hoàn thiện thành phẩm AI.</p></div>
+        <footer class="direction-actions"><button class="viewer-button" data-open="c">Xem lớn C <span aria-hidden="true">↗</span></button><button class="choose-button" data-choose="c">Chọn hướng C</button></footer>
+      </article>
+    </section>
+
+    <section id="focused" hidden aria-labelledby="focus-title">
+      <header class="focus-heading"><div><p class="eyebrow" id="focus-kicker"></p><h2 id="focus-title"></h2><p id="focus-description"></p></div><button class="viewer-button" id="focus-choice">Chọn hướng này</button></header>
+      <div id="focused-mock" class="full-size"></div>
+      <p class="focus-help">Bạn có thể chuyển giữa <strong>Đề bài</strong> và <strong>Kết quả chờ duyệt</strong>, thử nhập thông tin và bấm nút hành động. Mọi thao tác chỉ minh họa trên trang này.</p>
+    </section>
+
+    <section class="selection-area" aria-labelledby="selection-title">
+      <div><p class="eyebrow">LỰA CHỌN CỦA BẠN</p><h2 id="selection-title">Có thể chọn một hướng,<br>hoặc kết hợp các phần bạn thích.</h2><p id="selection-status" role="status">Chưa chọn hướng. Xem lớn từng bản để so sánh rõ hơn.</p></div>
+      <div class="feedback-area"><label for="feedback">Ghi chú để trao đổi tiếp</label><textarea id="feedback" rows="3" placeholder="Ví dụ: lấy bố cục B, nền tối A và cách đọc nội dung của C."></textarea><p class="quiet" id="storage-note">Lựa chọn chỉ lưu trong trình duyệt này. Hãy gửi hướng bạn chọn trong cuộc trò chuyện để mình tiếp tục.</p></div>
+    </section>
+
+    <footer class="canvas-footer"><span>10X / Design directions v1</span><span>Phác thảo để chọn hướng · chưa thay đổi phần mềm</span></footer>
+  </main>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="directions.js"></script>
+</body>
+</html>
