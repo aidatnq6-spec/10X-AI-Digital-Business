@@ -1,4 +1,5 @@
 import { projectSchema, type Brief, type Project } from './schema'
+import type { ProjectSummary } from './read-models'
 export class ProjectApiError extends Error {
   constructor(message:string,public readonly status:number,public readonly code?:string) {super(message)}
 }
@@ -14,6 +15,21 @@ export async function listProjects(signal?:AbortSignal):Promise<Project[]> {
 export async function getProject(id:string):Promise<Project> {
   const data=await read(await fetch(`/api/projects/${encodeURIComponent(id)}`,{cache:'no-store'}))
   return projectSchema.parse(data.project)
+}
+export async function listProjectSummaries(signal?:AbortSignal):Promise<ProjectSummary[]> {
+ const data=await read(await fetch('/api/projects?view=summary',{cache:'no-store',signal}))
+ return data.projects
+}
+export async function checkProject(id:string,etag?:string,signal?:AbortSignal):Promise<{project:Project|null;etag:string|null}>{
+ const response=await fetch(`/api/projects/${encodeURIComponent(id)}?view=workspace`,{cache:'no-store',signal,headers:etag?{'if-none-match':etag}:{}})
+ if(response.status===304){if(!etag)throw Error('Phản hồi đồng bộ không có bản dữ liệu tương ứng.');return {project:null,etag:response.headers.get('etag')??etag}}
+ const data=await read(response)
+ return {project:projectSchema.parse(data.project),etag:response.headers.get('etag')}
+}
+export async function getWorkspaceProject(id:string,signal?:AbortSignal):Promise<Project>{
+ const result=await checkProject(id,undefined,signal)
+ if(!result.project)throw Error('Không tải được dự án.')
+ return result.project
 }
 export async function saveProject(current:Project|null,brief:Brief,requestId:string):Promise<Project> {
   const name=`${brief.product} · ${brief.audience}`.slice(0,2000)

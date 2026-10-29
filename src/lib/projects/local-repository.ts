@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto'
-import { mkdir, readdir, readFile, open, rename, unlink, rmdir } from 'node:fs/promises'
+import { randomUUID,createHash } from 'node:crypto'
+import { mkdir, readdir, readFile, open, rename, unlink, rmdir, stat } from 'node:fs/promises'
 import { hostname } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
@@ -17,6 +17,13 @@ export class LocalProjectRepository implements ProjectRepository {
   private directory(id:string) {
     if(!z.uuid().safeParse(id).success) throw new ProjectError('INVALID_ID','Mã dự án không hợp lệ.')
     return join(this.root,id)
+  }
+  async versionTag(id:string):Promise<string> {
+    const file=join(this.directory(id),'state.json')
+    try {
+      const s=await stat(file,{bigint:true})
+      return '"'+createHash('sha256').update([id,s.ino,s.size,s.mtimeNs,s.ctimeNs].join(':')).digest('hex')+'"'
+    }catch(error){if(isCode(error,'ENOENT'))throw new ProjectError('NOT_FOUND','Không tìm thấy dự án.');throw error}
   }
   async get(id:string):Promise<Project> {
     const directory=this.directory(id)

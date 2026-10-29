@@ -3,6 +3,7 @@ import { createProjectSchema, patchProjectSchema } from './schema'
 import { ProjectError, type ProjectRepository } from './repository'
 import { AccessError, assertLocalAccess } from '../server/local-access'
 import { reviseBrief } from '../workflow/state-machine'
+import { workspaceProject,projectSummary } from './read-models'
 
 const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}
 export function json(body:unknown,status=200) {return Response.json(body,{status,headers})}
@@ -25,13 +26,30 @@ export async function handle(action:()=>Promise<Response>) {
 }
 export function createProjectHandlers(repository:ProjectRepository) {
   return {
-    list:(request:Request)=>handle(async()=>{assertLocalAccess(request);return json({projects:await repository.list()})}),
+    list:(request:Request)=>handle(async()=>{assertLocalAccess(request);const projects=await repository.list();return json({projects:new URL(request.url).searchParams.get('view')==='summary'?projects.map(projectSummary):projects})}),
     create:(request:Request)=>handle(async()=>{
       assertLocalAccess(request,true)
       const input=createProjectSchema.parse(await body(request))
       return json({project:await repository.create(input)},201)
     }),
-    get:(request:Request,id:string)=>handle(async()=>{assertLocalAccess(request);return json({project:await repository.get(id)})}),
+    get:(request:Request,id:string)=>handle(async()=>{
+      assertLocalAccess(request)
+      const query=new URL(request.url).searchParams,view=query.get('view')??'full'
+      if(!['full','workspace','history'].includes(view))throw new BodyError('Kiểu đọc dữ liệu không hợp lệ.')
+      if(view==='history'){
+        const stage=Number(query.get('systemId')),key=query.get('key')
+        if(!Number.isInteger(stage)||stage<1||stage>5||!key||key.length>100)throw new BodyError('Phạm vi lịch sử không hợp lệ.')
+        const p=await repository.get(id)
+        return json({artifacts:p.artifacts.filter(a=>a.systemId===stage&&a.key===key).sort((a,b)=>b.version-a.version),revision:p.revision})
+      }
+      const before=await repository.versionTag?.(id)
+      const tag=before?before.slice(0,-1)+'-'+view+'"':null
+      if(tag&&request.headers.get('if-none-match')?.split(',').map(x=>x.trim()).includes(tag))return new Response(null,{status:304,headers:{...headers,ETag:tag}})
+      const p=await repository.get(id),after=await repository.versionTag?.(id)
+      const response=json({project:view==='workspace'?workspaceProject(p):p})
+      if(tag&&before===after)response.headers.set('ETag',tag)
+      return response
+    }),
     patch:(request:Request,id:string)=>handle(async()=>{
       assertLocalAccess(request,true)
       const input=patchProjectSchema.parse(await body(request))
