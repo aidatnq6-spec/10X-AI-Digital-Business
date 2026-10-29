@@ -6,14 +6,22 @@ import { z } from 'zod'
 import type { DiagnosticEvent,DiagnosticOperation,DiagnosticStep } from './types'
 export type DiagnosticContext={directory?:string;source?:'web'|'worker';operation?:DiagnosticOperation;step?:DiagnosticStep;projectId?:string;jobId?:string;systemId?:number;command?:string}
 const context=new AsyncLocalStorage<DiagnosticContext>(),failures=new WeakMap<object,DiagnosticContext>()
-const commands=['start','pause','resume','approve','reviseArtifact','reviseBrief','configureAI','setScope','runStep','runChain','regenerateArtifact','useGenericCta','reconcileJob','reconcileUsage','confirmUsageCost']
+const commands=['start','pause','resume','approve','reviseArtifact','reviseBrief','configureAI','setScope','runStep','runChain','regenerateArtifact','useGenericCta','reconcileJob','reconcileUsage','confirmUsageCost','recordUsage','setSampleMode']
 const systemCodes=['EACCES','EPERM','ENOENT','EIO','ENOSPC','EBUSY','EEXIST','EMFILE','ENFILE','EPIPE','ECONNRESET','ETIMEDOUT','ECONNREFUSED','EADDRINUSE','ENOTDIR','ENOTEMPTY','EINVAL','EBADF','EISDIR','ENOMEM','EROFS','ESRCH']
 const projectCodes=['INVALID_ID','NOT_FOUND','CONFLICT','CORRUPT','BUSY']
-const eventSchema=z.object({version:z.literal(1),id:z.uuid(),at:z.iso.datetime(),code:z.string().regex(/^(INTERNAL_ERROR|PROVIDER_ERROR|INVALID_ID|NOT_FOUND|CONFLICT|CORRUPT|BUSY|FS_[A-Z]+)$/),source:z.enum(['web','worker']),operation:z.enum(['project.list','project.get','project.create','project.update','workflow.command','worker.poll','worker.job','worker.heartbeat','backup','diagnostics.read','http.request']),step:z.enum(['unknown','repository.read','repository.lock','repository.write','repository.commit','repository.release','backup.capture','provider.prepare','provider.generate','worker.complete','worker.recover','worker.claim']),pid:z.number().int().positive(),projectId:z.uuid().optional(),jobId:z.uuid().optional(),systemId:z.number().int().min(1).max(5).optional(),command:z.string().refine(x=>commands.includes(x)).optional(),systemCode:z.string().refine(x=>systemCodes.includes(x)).optional(),syscall:z.enum(['open','read','write','rename','unlink','mkdir','rmdir','stat','lstat','scandir','link','fsync']).optional(),errorType:z.enum(['Error','TypeError','SyntaxError','ProjectError','ProviderError','ZodError'])}).strict()
+const eventSchema=z.object({version:z.literal(1),id:z.uuid(),at:z.iso.datetime(),code:z.string().regex(/^(INTERNAL_ERROR|PROVIDER_ERROR|INVALID_ID|NOT_FOUND|CONFLICT|CORRUPT|BUSY|FS_[A-Z]+)$/),source:z.enum(['web','worker']),operation:z.enum(['project.list','project.get','project.create','project.update','workflow.command','worker.poll','worker.job','worker.heartbeat','backup','diagnostics.read','http.request']),step:z.enum(['unknown','repository.read','repository.lock','repository.write','repository.commit','repository.release','backup.capture','provider.prepare','provider.generate','provider.catalog','provider.usage','worker.complete','worker.recover','worker.claim']),pid:z.number().int().positive(),projectId:z.uuid().optional(),jobId:z.uuid().optional(),systemId:z.number().int().min(1).max(5).optional(),command:z.string().refine(x=>commands.includes(x)).optional(),systemCode:z.string().refine(x=>systemCodes.includes(x)).optional(),syscall:z.enum(['open','read','write','rename','unlink','mkdir','rmdir','stat','lstat','scandir','link','fsync']).optional(),errorType:z.enum(['Error','TypeError','SyntaxError','ProjectError','ProviderError','ZodError'])}).strict()
 const incidentName=/^\d{17}-[a-f0-9-]{36}\.json$/
 const queues=new Map<string,Promise<unknown>>()
 export function defaultDiagnosticsDirectory(){return join(process.env.MISSION_CONTROL_DATA_DIR??join(process.cwd(),'.local','projects'),'.diagnostics')}
-export function diagnosticContext<T>(value:DiagnosticContext,fn:()=>T):T{return context.run({...context.getStore(),...value},fn)}
+function preserveFailure(error:unknown):never{if(error&&typeof error==='object'&&!failures.has(error))failures.set(error,{...context.getStore()});throw error}
+export function diagnosticContext<T>(value:DiagnosticContext,fn:()=>T):T{
+ return context.run({...context.getStore(),...value},()=>{
+  try{const result=fn();if(result&&typeof (result as {then?:unknown}).then==='function')return Promise.resolve(result).catch(preserveFailure) as T;return result}
+  catch(error){return preserveFailure(error)}
+ })
+}
+export function identifyDiagnosticJob(job:{id:string;systemId:number}){const current=context.getStore();if(current){current.jobId=job.id;current.systemId=job.systemId}}
+
 export async function diagnosticStep<T>(step:DiagnosticStep,fn:()=>Promise<T>):Promise<T>{
  return diagnosticContext({step},async()=>{try{return await fn()}catch(error){if(error&&typeof error==='object'&&!failures.has(error))failures.set(error,{...context.getStore()});throw error}})
 }

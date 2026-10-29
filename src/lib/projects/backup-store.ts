@@ -1,5 +1,6 @@
+import { atomicReplace } from './atomic-replace'
 import { createHash,randomUUID } from 'node:crypto'
-import { mkdir,readdir,readFile,open,rename,unlink,lstat,link } from 'node:fs/promises'
+import { mkdir,readdir,readFile,open,unlink,lstat,link } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
 import { projectSchema,type Project } from './schema'
@@ -20,7 +21,7 @@ export function validateBackupEnvelope(raw:unknown){
 export function backupEnvelope(saved:z.infer<typeof envelope>){return {...saved,checksum:hash(saved.data)}}
 export async function atomicJson(path:string,value:unknown){
  const temporary=path+'.'+randomUUID()+'.tmp'
- try{const f=await open(temporary,'wx');try{await f.writeFile(JSON.stringify(value),'utf8');await f.sync()}finally{await f.close()}await rename(temporary,path)}
+ try{const f=await open(temporary,'wx');try{await f.writeFile(JSON.stringify(value),'utf8');await f.sync()}finally{await f.close()}await atomicReplace(temporary,path)}
  finally{await unlink(temporary).catch(e=>{if(!isMissing(e))throw e})}
 }
 function fingerprint(project:Project){

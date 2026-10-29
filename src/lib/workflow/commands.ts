@@ -1,3 +1,4 @@
+import { diagnosticContext,diagnosticStep } from '../diagnostics/server'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { briefSchema,type Project,type ArtifactVersion } from '../projects/schema'
@@ -106,10 +107,12 @@ export function applyCommand(p:Project,c:WorkflowCommand,config?:LiveConfig):Pro
 export async function executeCommand(repo:ProjectRepository,id:string,input:unknown,services:{models?:()=>Promise<ModelQuote[]>;key?:()=>string;usage?:(id:string)=>Promise<import('../projects/schema').Usage>}={}){
  const command=commandSchema.parse(input),payload=JSON.stringify(command)
  const first=await repo.get(id),receipt=first.commandReceipts.find(x=>x.requestId===command.requestId)
+ const systemId='systemId' in command?command.systemId:'artifactId' in command?first.artifacts.find(a=>a.id===command.artifactId)?.systemId??first.workflow.stage:first.workflow.stage
+ return diagnosticContext({directory:repo.diagnosticsDirectory,operation:'workflow.command',projectId:id,command:command.type,systemId,...('jobId' in command?{jobId:command.jobId}:{})},async()=>{
  if(receipt){if(receipt.payload!==payload)fail('Mã lệnh đã dùng với nội dung khác.');return first}
  let config:LiveConfig|undefined
  if(command.type==='configureAI'){
-  const models=await (services.models??fetchModels)(),quote=models.find(m=>m.id===command.settings.modelId)
+  const models=await diagnosticStep('provider.catalog',()=> (services.models??fetchModels)()),quote=models.find(m=>m.id===command.settings.modelId)
   if(!quote)fail('Model chưa hỗ trợ JSON có cấu trúc hoặc chưa có giá xác định. Tải lại danh sách.')
   const {acknowledgeCost,...settings}=command.settings
   config={...settings,quote,consentAt:new Date().toISOString()}
@@ -119,7 +122,7 @@ export async function executeCommand(repo:ProjectRepository,id:string,input:unkn
  if(command.type==='reconcileUsage'){
   const job=first.jobs.find(j=>j.id===command.jobId)
   if(!job?.providerRequestId||job.mode!=='openrouter')fail('Không có mã provider để đối chiếu tự động. Kiểm tra trang Activity trên OpenRouter.')
-  const usage=await (services.usage??(id=>new OpenRouterProvider().generationUsage(id)))(job.providerRequestId)
+  const usage=await diagnosticStep('provider.usage',()=> (services.usage??(id=>new OpenRouterProvider().generationUsage(id)))(job.providerRequestId!))
   return transact(repo,id,p=>({...p,jobs:p.jobs.map(j=>j.id===job.id?{...j,usage}:j),commandReceipts:[...p.commandReceipts,{requestId:command.requestId,payload}]}))
  }
  return transact(repo,id,p=>{
@@ -127,5 +130,6 @@ export async function executeCommand(repo:ProjectRepository,id:string,input:unkn
   if(previous){if(previous.payload!==payload)fail('Mã lệnh đã dùng với nội dung khác.');return p}
   const next=applyCommand(p,command,config)
   return {...next,commandReceipts:[...p.commandReceipts,{requestId:command.requestId,payload}]}
+ })
  })
 }

@@ -13,16 +13,16 @@ export function BackupPanel({project,blocked,busy,onBusy,onRestored}:{project:Pr
  const [catalog,setCatalog]=useState<Catalog|null>(null),[error,setError]=useState(''),[message,setMessage]=useState('')
  const [working,setWorking]=useState(false),[loading,setLoading]=useState(false)
  const [filter,setFilter]=useState('current'),[selected,setSelected]=useState(''),[confirm,setConfirm]=useState(false),[consent,setConsent]=useState(false)
- const readPending=useRef(false)
+ const readPending=useRef<symbol|null>(null)
  const pending=useRef<{key:string;id:string}|null>(null)
  async function load(signal?:AbortSignal){
   if(readPending.current||document.visibilityState==='hidden')return
-  readPending.current=true;setLoading(true)
-  try{const r=await fetch('/api/backups',{cache:'no-store',signal});const data=await r.json();if(!r.ok)throw Error(data.error);if(!signal?.aborted){setCatalog(data);setError('')}}
-  catch(e){if(!signal?.aborted)setError(e instanceof Error?e.message:'Không đọc được danh sách sao lưu.')}
-  finally{readPending.current=false;if(!signal?.aborted)setLoading(false)}
+  const token=Symbol();readPending.current=token;setLoading(true)
+  try{const r=await fetch('/api/backups',{cache:'no-store',signal});const data=await r.json();if(!r.ok)throw Error(data.error);if(!signal?.aborted&&readPending.current===token){setCatalog(data);setError('')}}
+  catch(e){if(!signal?.aborted&&readPending.current===token)setError(e instanceof Error?e.message:'Không đọc được danh sách sao lưu.')}
+  finally{if(readPending.current===token){readPending.current=null;if(!signal?.aborted)setLoading(false)}}
  }
- useEffect(()=>{const controller=new AbortController();void load(controller.signal);const timer=setInterval(()=>void load(controller.signal),30000);const visibility=()=>{if(document.visibilityState!=='hidden')void load(controller.signal)};document.addEventListener('visibilitychange',visibility);return()=>{controller.abort();clearInterval(timer);document.removeEventListener('visibilitychange',visibility)}},[project?.id])
+ useEffect(()=>{const controller=new AbortController();void load(controller.signal);const timer=setInterval(()=>void load(controller.signal),30000);const visibility=()=>{if(document.visibilityState!=='hidden')void load(controller.signal)};document.addEventListener('visibilitychange',visibility);return()=>{controller.abort();readPending.current=null;clearInterval(timer);document.removeEventListener('visibilitychange',visibility)}},[project?.id])
  useEffect(()=>{setSelected('');setConfirm(false);setConsent(false)},[project?.id])
  const entries=(catalog?.backups??[]).filter(b=>filter==='all'||!project||b.projectId===project.id)
  const backup=entries.find(b=>b.id===selected)

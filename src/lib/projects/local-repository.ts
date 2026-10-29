@@ -1,3 +1,4 @@
+import { atomicReplace,windowsFileOperation } from './atomic-replace'
 import { diagnosticContext,diagnosticStep } from '../diagnostics/server'
 import { randomUUID,createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, open, rename, unlink, rmdir, stat } from 'node:fs/promises'
@@ -49,7 +50,7 @@ export class LocalProjectRepository implements ProjectRepository {
     const token=randomUUID()
     for(let attempt=0;attempt<80;attempt++) {
       try {
-        const file=await open(path,'wx')
+        const file=await windowsFileOperation(()=>open(path,'wx'))
         try { await file.writeFile(JSON.stringify({token,pid:process.pid,hostname:hostname(),createdAt:new Date().toISOString()})); await file.sync() }
         finally { await file.close() }
         return async()=>{
@@ -69,10 +70,10 @@ export class LocalProjectRepository implements ProjectRepository {
     return diagnosticStep('repository.write',async()=>{
     const path=join(directory,`${randomUUID()}.tmp`)
     try {
-      const file=await open(path,'wx')
+      const file=await windowsFileOperation(()=>open(path,'wx'))
       try { await file.writeFile(JSON.stringify(project,null,2),'utf8'); await file.sync() }
       finally { await file.close() }
-      await diagnosticStep('repository.commit',()=>rename(path,join(directory,'state.json')))
+      await diagnosticStep('repository.commit',()=>atomicReplace(path,join(directory,'state.json')))
     } finally { await unlink(path).catch(error=>{if(!isCode(error,'ENOENT')) throw error}) }
     })
   }
@@ -108,6 +109,7 @@ export class LocalProjectRepository implements ProjectRepository {
     }
   }
   async update(id:string,expectedRevision:number,mutation:(current:Project)=>Project) {
+    return diagnosticContext({directory:this.diagnosticsDirectory,projectId:id},async()=>{
     const directory=this.directory(id)
     // Read before locking so missing projects return NOT_FOUND instead of filesystem errors.
     await this.get(id)
@@ -124,6 +126,7 @@ export class LocalProjectRepository implements ProjectRepository {
       await this.backups.captureSafely(project)
       return project
     } finally { await diagnosticStep('repository.release',release) }
+      })
   }
 
   async unreadableProjects(){

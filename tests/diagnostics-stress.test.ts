@@ -7,9 +7,10 @@ import { randomUUID } from 'node:crypto'
 import { LocalProjectRepository } from '../src/lib/projects/local-repository'
 import { icaPreset } from '../src/lib/projects/ica-preset'
 import { DiagnosticStore,diagnosticStep,reportDiagnostic } from '../src/lib/diagnostics/server'
+import { handle,json } from '../src/lib/projects/http'
 import { workflowHandler } from '../src/lib/workflow/http'
 import { executeCommand } from '../src/lib/workflow/commands'
-import { runOnce } from '../src/lib/workflow/worker'
+import { runOnce,recoverExpired } from '../src/lib/workflow/worker'
 import { SampleProvider } from '../src/lib/ai/sample-provider'
 const owner={id:randomUUID(),pid:process.pid,hostname:hostname()}
 async function setup(t:any){const root=await mkdtemp(join(tmpdir(),'mc-diag-stress-'));t.after(()=>rm(root,{recursive:true,force:true}));const repo=new LocalProjectRepository(root),p=await repo.create({name:'Sample diagnostics',brief:icaPreset});return {root,repo,p}}
@@ -42,7 +43,7 @@ test('concurrent approval, history and backup reads preserve committed state wit
  const readers=Array.from({length:3},async()=>{while(!stop){try{await repo.get(p.id);await repo.backups.list(p.id)}catch(e){failures.push(e)}await new Promise(r=>setTimeout(r,2))}})
  try{
   const results=await Promise.all(Array.from({length:12},()=>api(new Request(`http://127.0.0.1:3220/api/projects/${p.id}/commands`,{method:'POST',headers:{host:'127.0.0.1:3220',origin:'http://127.0.0.1:3220','content-type':'application/json'},body:JSON.stringify({type:'approve',gate:1,briefVersion:1,artifactVersionIds:ids,requestId:randomUUID()})}),p.id)))
-  assert.ok(results.some(r=>r.status===200));assert.ok(results.every(r=>r.status===200||r.status===409))
+  assert.ok(results.some(r=>r.status===200));assert.ok(results.every(r=>r.status===200||r.status===409),JSON.stringify(await Promise.all(results.filter(r=>r.status!==200&&r.status!==409).map(async r=>({status:r.status,...await r.clone().json()})))))
  }finally{stop=true;await Promise.all(readers)}
  assert.equal(failures.length,0)
  assert.equal((await repo.get(p.id)).status,'paused')
@@ -59,4 +60,45 @@ test('post-commit release error is distinguished and retrying the same receipt c
  assert.equal((await repo.get(p.id)).jobs.length,1)
  unlink.mock.restore()
  assert.equal((await handler(req(),p.id)).status,200);assert.equal((await repo.get(p.id)).jobs.length,1)
+})
+
+
+test('failed approval includes workflow system even when command has no systemId',async t=>{
+ const {repo,p}=await setup(t)
+ await executeCommand(repo,p.id,{type:'runStep',systemId:1,requestId:randomUUID()});await runOnce(repo,new SampleProvider(0),owner)
+ const ready=await repo.get(p.id),fs=require('node:fs/promises'),original=fs.rename
+ const rename=mock.method(fs,'rename',async(from:string,to:string)=>{if(String(to).endsWith('state.json'))throw Object.assign(Error('private'),{code:'EIO',syscall:'rename'});return original(from,to)});t.after(()=>rename.mock.restore())
+ const response=await workflowHandler(repo)(new Request(`http://127.0.0.1:3220/api/projects/${p.id}/commands`,{method:'POST',headers:{host:'127.0.0.1:3220',origin:'http://127.0.0.1:3220','content-type':'application/json'},body:JSON.stringify({type:'approve',gate:1,briefVersion:1,artifactVersionIds:ready.artifacts.map(a=>a.id),requestId:randomUUID()})}),p.id)
+ const data=await response.json();assert.equal(response.status,500);assert.equal(data.diagnostic.command,'approve');assert.equal(data.diagnostic.systemId,1)
+})
+
+
+test('Windows transient lock-open EPERM is retried before mutation and queues only once',async t=>{
+ const {repo,p}=await setup(t),fs=require('node:fs/promises'),original=fs.open;let opens=0
+ const open=mock.method(fs,'open',async(path:string,...args:any[])=>{if(String(path).endsWith('write.lock')&&++opens<3)throw Object.assign(Error('temporarily denied'),{code:'EPERM',syscall:'open'});return original(path,...args)});t.after(()=>open.mock.restore())
+ const response=await workflowHandler(repo)(new Request(`http://127.0.0.1:3220/api/projects/${p.id}/commands`,{method:'POST',headers:{host:'127.0.0.1:3220',origin:'http://127.0.0.1:3220','content-type':'application/json'},body:JSON.stringify({type:'runStep',systemId:1,requestId:randomUUID()})}),p.id)
+ assert.equal(response.status,200);assert.equal(opens,3);assert.equal((await repo.get(p.id)).jobs.length,1)
+})
+
+
+test('command service rejection preserves command system and provider step',async t=>{
+ const {repo,p}=await setup(t)
+ const response=await handle(async()=>json({project:await executeCommand(repo,p.id,{type:'configureAI',requestId:randomUUID(),settings:{modelId:'test/model',maxCalls:2,maxInputTokens:8192,maxOutputTokens:512,budgetUsd:1,acknowledgeCost:true}},{models:async()=>{throw Error('sk-private')}})}),{directory:repo.diagnosticsDirectory,operation:'workflow.command',projectId:p.id})
+ const data=await response.json();assert.equal(response.status,500);assert.equal(data.diagnostic.command,'configureAI');assert.equal(data.diagnostic.systemId,1);assert.equal(data.diagnostic.step,'provider.catalog')
+})
+
+test('claim and recovery commit failures retain known project job and system without calling provider',async t=>{
+ const {repo,p}=await setup(t)
+ let ready=await executeCommand(repo,p.id,{type:'runStep',systemId:1,requestId:randomUUID()});const jobId=ready.jobs[0].id
+ const fs=require('node:fs/promises'),original=fs.rename
+ const fail=()=>mock.method(fs,'rename',async(from:string,to:string)=>{if(String(to).endsWith('state.json'))throw Object.assign(Error('private'),{code:'EIO',syscall:'rename'});return original(from,to)})
+ let calls=0,rename=fail();t.after(()=>rename.mock.restore())
+ let event:any
+ try{await runOnce(repo,{generate:async()=>{calls++;return []}},owner);assert.fail('must fail')}catch(error){event=await reportDiagnostic(error,{directory:repo.diagnosticsDirectory,source:'worker',operation:'worker.job'})}
+ rename.mock.restore()
+ assert.equal(event.step,'repository.commit');assert.equal(event.projectId,p.id);assert.equal(event.jobId,jobId);assert.equal(event.systemId,1);assert.equal(calls,0)
+ ready=await repo.update(p.id,ready.revision,x=>({...x,status:'running',jobs:x.jobs.map(j=>({...j,status:'running',leaseUntil:0}))}))
+ rename=fail()
+ try{await recoverExpired(repo);assert.fail('must fail')}catch(error){event=await reportDiagnostic(error,{directory:repo.diagnosticsDirectory,source:'worker',operation:'worker.poll'})}
+ rename.mock.restore();assert.equal(event.projectId,p.id);assert.equal(event.jobId,jobId);assert.equal(event.systemId,1)
 })

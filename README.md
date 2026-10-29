@@ -124,3 +124,12 @@ Firebase và tạo ảnh/video là giai đoạn tiếp theo khi có yêu cầu t
 - **Sao lưu bằng tệp JSON → Tải tệp sao lưu** tạo tệp của dữ liệu đã lưu. Chrome có thể lưu ở Downloads; chuyển thêm sang ổ khác để bảo vệ khi hỏng ổ máy. Tệp có nội dung dự án, không bao gồm biến môi trường/API key được cấu hình trên máy.
 - Chọn JSON tối đa 32 MiB, kiểm tra tên, đánh dấu xác nhận rồi nhập. Máy chủ xác minh checksum và schema, tạo dự án riêng ở trạng thái tạm dừng; không tự chạy AI. Giữ nguyên bản gốc, lịch sử phí đã biết và các khoản chưa rõ; phải cấu hình lại model/hạn mức để chạy AI thật. Giữ nguyên tệp đã xuất, không sửa tay; checksum giúp phát hiện thay đổi, không xác thực nguồn tệp.
 - Backup tự động trên cùng ổ không thay thế bản sao bên ngoài. Chưa có tự đồng bộ cloud hoặc tác vụ backup khi cả ứng dụng/worker đã đóng.
+
+
+## Chẩn đoán lỗi
+
+- Khi gặp lỗi500, thông báo có **mã lỗi**, thời điểm UTC, bước thất bại và **mã đối chiếu**. Mở **Nhật ký lỗi & chẩn đoán** ở màn hình dự án, rồi bấm tải lại để tìm cùng mã. Giờ trong nhật ký được hiển thị theo máy của bạn.
+- Nhật ký API/worker nằm tại `.local/projects/.diagnostics` (hoặc `<MISSION_CONTROL_DATA_DIR>/.diagnostics`), tối đa200 sự cố; giao diện đọc20 bản gần nhất. Chỉ đọc khi mở/tải lại, không gửi log ra ngoài. Không ghi nội dung dự án, prompt, key, env, message/stack thô hoặc đường dẫn riêng. Không có dữ liệu hồi tố của lỗi trước khi cài bản này.
+- `FS_EPERM` tại `repository.commit` là Windows từ chối đổi tên tệp snapshot; tại `repository.lock` là từ chối mở tệp khóa. Các thao tác filesystem an toàn được thử tối đa6 lần, nghỉ20/40/80/160/320ms. Không tự gửi lại lệnh, không gọi lại AI. Nếu vẫn lỗi, mã đối chiếu được giữ để điều tra; không mặc định xóa khóa hay ghi đè snapshot.
+- Lỗi ở bước `repository.release` có thể xảy ra sau khi dữ liệu đã lưu. Kiểm tra bản đã lưu/nhật ký trước khi thao tác tiếp; cùng requestId được đối chiếu qua receipt để tránh nhân đôi công việc. Lượt AI chưa rõ kết quả/chi phí vẫn phải đối chiếu như trước.
+- Nếu thông báo **Chưa ghi được nhật ký trên ổ đĩa**, giữ lại mã và thời điểm hiển thị; kiểm tra dung lượng/quyền ghi. Log hỏng không biến lỗi gốc thành một kết quả thành công.

@@ -27,4 +27,4 @@ async function main(){
   catch(e){const diagnostic=await reportDiagnostic(e,{source:'worker',directory:repo.diagnosticsDirectory,operation:'worker.poll'});lastError='Không xử lý được kho dự án. Dữ liệu được giữ nguyên. '+diagnosticReference(diagnostic);await new Promise(r=>setTimeout(r,1000))}
  }
 }
-main().catch(()=>{console.error('Không khởi động được worker; kiểm tra cổng và kho dữ liệu.');process.exitCode=1})
+main().catch(async error=>{const diagnostic=await reportDiagnostic(error,{source:'worker',operation:'worker.poll'});console.error('Không khởi động được worker; kiểm tra cổng và kho dữ liệu. '+diagnosticReference(diagnostic));process.exitCode=1})

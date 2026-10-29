@@ -3,7 +3,7 @@ import { useEffect,useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type { DiagnosticEvent } from '@/lib/diagnostics/types'
 import { Button } from './ui/button'
-const steps:Record<string,string>={'unknown':'Chưa xác định','repository.read':'Đọc dữ liệu','repository.lock':'Giữ khóa dữ liệu','repository.write':'Ghi snapshot tạm','repository.commit':'Chốt snapshot','repository.release':'Nhả khóa dữ liệu','backup.capture':'Tạo sao lưu','provider.prepare':'Chuẩn bị gọi AI','provider.generate':'Tạo nội dung','worker.complete':'Lưu kết quả tác vụ','worker.recover':'Kiểm tra tác vụ gián đoạn','worker.claim':'Nhận tác vụ'}
+const steps:Record<string,string>={'unknown':'Chưa xác định','repository.read':'Đọc dữ liệu','repository.lock':'Giữ khóa dữ liệu','repository.write':'Ghi snapshot tạm','repository.commit':'Chốt snapshot','repository.release':'Nhả khóa dữ liệu','backup.capture':'Tạo sao lưu','provider.prepare':'Chuẩn bị gọi AI','provider.generate':'Tạo nội dung','provider.catalog':'Tải model và giá','provider.usage':'Đối chiếu phí AI','worker.complete':'Lưu kết quả tác vụ','worker.recover':'Kiểm tra tác vụ gián đoạn','worker.claim':'Nhận tác vụ'}
 export function DiagnosticsPanel(){
  const [open,setOpen]=useState(false),[events,setEvents]=useState<DiagnosticEvent[]|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(false),[reload,setReload]=useState(0)
  useEffect(()=>{
